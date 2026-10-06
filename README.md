@@ -1,8 +1,8 @@
-# Cleave
+# Cleave / OmniChunk
 
 **Understand information before you cut it.**
 
-Cleave is a universal chunking and information-extraction engine. Most RAG pipelines start
+Cleave (OmniChunk) is a universal chunking and information-extraction engine. Most RAG pipelines start
 by destroying information: convert the file to text, split every N tokens, hope for the
 best. Tables lose their headers, captions lose their figures, and answers lose the
 questions they were answering. Cleave profiles each input first, routes each region to the
@@ -14,6 +14,25 @@ need AI enrichment — so intelligence is spent only where it changes the answer
 📖 **[User Guide](USER_GUIDE.md)** — run it, and read what it shows you ·
 🏗 **[Architecture](ARCHITECTURE.md)** — how it works inside ·
 🔌 **[Contract](CONTRACT.md)** — plug in another modality
+
+---
+
+## 🎨 New UI & Typography Upgrades
+
+The web interface now features an **Aurora Glass Design System** and dynamic customization directly in the header:
+
+- **Typography System & Live Switcher:**
+  - **Plus Jakarta Sans** (Modern tech sans-serif, default)
+  - **Outfit** (Futuristic geometric display font for high-impact titles)
+  - **Space Grotesk** (Cybernetic clean display style)
+  - **JetBrains Mono** (Precision token metering and provenance hashes)
+  - *Includes an in-header Font Switcher (`Jakarta` · `Outfit` · `Grotesk`) persisted in localStorage!*
+- **Brand Identity Switcher:** Allows live switching between **OmniChunk**, **NexusChunk**, **SynapseSplit**, **AetherCleave**, or classic **Cleave**.
+- **Aurora Glass Aesthetic:** Obsidian backdrop (`#070A12`) with ambient radial light leaks in electric cyan, indigo, and violet.
+- **Glassmorphic Components:** Frosted glass cards (`backdrop-blur-2xl`), luminous 1px borders, and glowing button hover states.
+- **Interactive Staging & Pipeline:** Drag & drop zone with modality badges (`PDF`, `DOCX`, `XLSX`, `CSV`, `Audio`, `Video`), multi-file queue, and animated multi-color progress pipeline.
+
+---
 
 ## How it works
 
