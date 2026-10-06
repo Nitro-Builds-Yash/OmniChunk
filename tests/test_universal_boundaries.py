@@ -50,9 +50,12 @@ def _make_ingest(elements: list[ContentElement], title: str = "Test Doc") -> Ing
 
 # ───────── 1. Boundary Candidate Generation & Signals ─────────
 
+
 def test_document_heading_generates_strong_boundary_candidate():
     elements = [
-        ContentElement(id="p1", kind="paragraph", text="Introduction paragraph with some background."),
+        ContentElement(
+            id="p1", kind="paragraph", text="Introduction paragraph with some background."
+        ),
         ContentElement(id="h1", kind="heading", text="2. Method Overview", level=2),
         ContentElement(id="p2", kind="paragraph", text="Details of the method."),
     ]
@@ -81,6 +84,7 @@ def test_heading_stranding_is_vetoed():
 
 # ───────── 2. Hard vs Soft Constraint Enforcement ─────────
 
+
 def test_caption_float_severance_is_hard_veto():
     elements = [
         ContentElement(id="p1", kind="paragraph", text="Lead paragraph."),
@@ -92,7 +96,9 @@ def test_caption_float_severance_is_hard_veto():
     candidates = generate_candidates_for_region(elements, graph)
 
     # Candidate between cap1 and fig1 (index 2 in region)
-    cand_cap_fig = next(c for c in candidates if c.left_element_id == "cap1" and c.right_element_id == "fig1")
+    cand_cap_fig = next(
+        c for c in candidates if c.left_element_id == "cap1" and c.right_element_id == "fig1"
+    )
     assert any("sever" in v for v in cand_cap_fig.veto_reasons)
 
 
@@ -105,17 +111,22 @@ def test_list_items_treated_as_soft_boundaries():
     graph = ContextGraph(elements)
     candidates = generate_candidates_for_region(elements, graph)
 
-    cand_list = next(c for c in candidates if c.left_element_id == "li1" and c.right_element_id == "li2")
+    cand_list = next(
+        c for c in candidates if c.left_element_id == "li1" and c.right_element_id == "li2"
+    )
     assert cand_list.is_soft is True
     assert cand_list.signals.get("list_continuation") == 1.0
 
 
 # ───────── 3. ContextGraph Active Intelligence & Relationship Loss ─────────
 
+
 def test_graph_relationship_loss_calculated():
     elements = [
         ContentElement(id="p1", kind="paragraph", text="We see the details in Table 1 below."),
-        ContentElement(id="t1", kind="table", text="Table body", meta={"grid": [["A", "B"], ["1", "2"]]}),
+        ContentElement(
+            id="t1", kind="table", text="Table body", meta={"grid": [["A", "B"], ["1", "2"]]}
+        ),
         ContentElement(id="p2", kind="paragraph", text="Continuing discussion."),
     ]
     graph = ContextGraph(elements)
@@ -142,15 +153,26 @@ def test_graph_separation_score():
 
 # ───────── 4. Video Multimodal Boundary Alignment & Consensus ─────────
 
+
 def test_video_multimodal_consensus_boosts_confidence():
     elements = [
         ContentElement(
-            id="v1", kind="speech_segment", text="This concludes our discussion on revenue.",
-            t0=0.0, t1=10.0, speaker="Alice", meta={"visual_summary": "revenue slide", "ocr_text": "Q3 Revenue"}
+            id="v1",
+            kind="speech_segment",
+            text="This concludes our discussion on revenue.",
+            t0=0.0,
+            t1=10.0,
+            speaker="Alice",
+            meta={"visual_summary": "revenue slide", "ocr_text": "Q3 Revenue"},
         ),
         ContentElement(
-            id="v2", kind="speech_segment", text="Now let us look at the new product roadmap.",
-            t0=12.5, t1=22.0, speaker="Bob", meta={"visual_summary": "roadmap timeline", "ocr_text": "2027 Roadmap"}
+            id="v2",
+            kind="speech_segment",
+            text="Now let us look at the new product roadmap.",
+            t0=12.5,
+            t1=22.0,
+            speaker="Bob",
+            meta={"visual_summary": "roadmap timeline", "ocr_text": "2027 Roadmap"},
         ),
     ]
     graph = ContextGraph(elements)
@@ -172,12 +194,22 @@ def test_partial_modality_video_elements_work_gracefully():
     # Video with only speech and visual summary, but no OCR
     elements = [
         ContentElement(
-            id="s1", kind="speech_segment", text="Introductory speech.",
-            t0=0.0, t1=5.0, speaker="A", meta={"visual_summary": "intro scene"}
+            id="s1",
+            kind="speech_segment",
+            text="Introductory speech.",
+            t0=0.0,
+            t1=5.0,
+            speaker="A",
+            meta={"visual_summary": "intro scene"},
         ),
         ContentElement(
-            id="s2", kind="speech_segment", text="Action explanation.",
-            t0=5.5, t1=12.0, speaker="A", meta={"visual_summary": "demo screen"}
+            id="s2",
+            kind="speech_segment",
+            text="Action explanation.",
+            t0=5.5,
+            t1=12.0,
+            speaker="A",
+            meta={"visual_summary": "demo screen"},
         ),
     ]
     graph = ContextGraph(elements)
@@ -191,10 +223,21 @@ def test_partial_modality_video_elements_work_gracefully():
 
 # ───────── 5. Conversational Knowledge Units ─────────
 
+
 def test_classify_conversational_question_answer():
     elements = [
-        ContentElement(id="q1", kind="speech_segment", text="What is the expected release date?", speaker="Alice"),
-        ContentElement(id="a1", kind="speech_segment", text="We are aiming for end of next month.", speaker="Bob"),
+        ContentElement(
+            id="q1",
+            kind="speech_segment",
+            text="What is the expected release date?",
+            speaker="Alice",
+        ),
+        ContentElement(
+            id="a1",
+            kind="speech_segment",
+            text="We are aiming for end of next month.",
+            speaker="Bob",
+        ),
     ]
     ku_type, meta = classify_conversational_elements(elements)
     assert ku_type == KnowledgeUnitType.QUESTION_ANSWER.value
@@ -203,7 +246,12 @@ def test_classify_conversational_question_answer():
 
 def test_classify_conversational_decision():
     elements = [
-        ContentElement(id="d1", kind="speech_segment", text="After reviewing the proposal, we agreed to go with Option B.", speaker="Alice"),
+        ContentElement(
+            id="d1",
+            kind="speech_segment",
+            text="After reviewing the proposal, we agreed to go with Option B.",
+            speaker="Alice",
+        ),
     ]
     ku_type, meta = classify_conversational_elements(elements)
     assert ku_type == KnowledgeUnitType.DECISION.value
@@ -212,7 +260,12 @@ def test_classify_conversational_decision():
 
 def test_classify_conversational_action_item():
     elements = [
-        ContentElement(id="ai1", kind="speech_segment", text="Action item: Bob will follow up with the infra team.", speaker="Alice"),
+        ContentElement(
+            id="ai1",
+            kind="speech_segment",
+            text="Action item: Bob will follow up with the infra team.",
+            speaker="Alice",
+        ),
     ]
     ku_type, meta = classify_conversational_elements(elements)
     assert ku_type == KnowledgeUnitType.ACTION_ITEM.value
@@ -221,11 +274,19 @@ def test_classify_conversational_action_item():
 
 # ───────── 6. Adaptive Granularity & Hierarchical Units ─────────
 
+
 def test_chunking_attaches_adaptive_granularity_metadata():
     elements = [
         ContentElement(id="h1", kind="heading", text="1. System Architecture", level=1),
-        ContentElement(id="p1", kind="paragraph", text="The system employs a modular microservice pipeline.", parent_id="h1"),
-        ContentElement(id="p2", kind="paragraph", text="Each component scales independently.", parent_id="h1"),
+        ContentElement(
+            id="p1",
+            kind="paragraph",
+            text="The system employs a modular microservice pipeline.",
+            parent_id="h1",
+        ),
+        ContentElement(
+            id="p2", kind="paragraph", text="Each component scales independently.", parent_id="h1"
+        ),
     ]
     ingest = _make_ingest(elements)
     graph = ContextGraph(elements)
@@ -254,10 +315,14 @@ def test_hierarchical_knowledge_unit_linking():
         for child_id in parent.child_ids:
             child = next(u for u in units if u.id == child_id)
             assert child.parent_id == parent.id
-            assert any(r.type == RelationType.CHILD_OF and r.target_id == parent.id for r in child.relationships)
+            assert any(
+                r.type == RelationType.CHILD_OF and r.target_id == parent.id
+                for r in child.relationships
+            )
 
 
 # ───────── 7. Context Completeness Scoring ─────────
+
 
 def test_context_completeness_detects_missing_context():
     # An orphan unit with bare anaphora and no heading context
@@ -295,10 +360,13 @@ def test_context_completeness_enriches_self_contained_unit():
 
 # ───────── 8. Evaluation Framework Metrics ─────────
 
+
 def test_evaluation_metrics_framework():
     elements = [
         ContentElement(id="h1", kind="heading", text="1. Executive Summary", level=1),
-        ContentElement(id="p1", kind="paragraph", text="Company revenue reached record levels.", parent_id="h1"),
+        ContentElement(
+            id="p1", kind="paragraph", text="Company revenue reached record levels.", parent_id="h1"
+        ),
     ]
     ingest = _make_ingest(elements)
     graph = ContextGraph(elements)

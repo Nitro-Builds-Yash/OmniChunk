@@ -59,22 +59,37 @@ def ingest_audio(path: str | Path) -> IngestResult:
             raise STTUnavailable(
                 f"STT worker at {url} did not respond ({exc}); start it, or drop the audio file from this job"
             ) from exc
-        log.warning("STT worker offline (%s) — using resilient audio fallback for %s", exc, path.name)
+        log.warning(
+            "STT worker offline (%s) — using resilient audio fallback for %s", exc, path.name
+        )
         warnings.append("STT worker offline: generated resilient speech transcript for evaluation")
         stem_clean = path.stem.replace("_", " ").replace("-", " ")
         segments = [
-            {"text": f"Welcome to the session on {stem_clean}. Let's review the key discussion points.", "start": 0.0, "end": 6.5, "speaker": "SPEAKER_01"},
-            {"text": f"Thanks. Looking at the {stem_clean} topic, what are our main objectives and conclusions?", "start": 7.0, "end": 14.2, "speaker": "SPEAKER_02"},
-            {"text": "We decided to adopt the recommended strategy and agreed on action items for the team.", "start": 14.8, "end": 22.0, "speaker": "SPEAKER_01"},
+            {
+                "text": f"Welcome to the session on {stem_clean}. Let's review the key discussion points.",
+                "start": 0.0,
+                "end": 6.5,
+                "speaker": "SPEAKER_01",
+            },
+            {
+                "text": f"Thanks. Looking at the {stem_clean} topic, what are our main objectives and conclusions?",
+                "start": 7.0,
+                "end": 14.2,
+                "speaker": "SPEAKER_02",
+            },
+            {
+                "text": "We decided to adopt the recommended strategy and agreed on action items for the team.",
+                "start": 14.8,
+                "end": 22.0,
+                "speaker": "SPEAKER_01",
+            },
         ]
 
     if resp is not None:
         try:
             data = resp.json()
         except ValueError as exc:
-            raise STTUnavailable(
-                f"STT worker at {url} returned a non-JSON reply ({exc})"
-            ) from exc
+            raise STTUnavailable(f"STT worker at {url} returned a non-JSON reply ({exc})") from exc
         if data.get("error"):
             raise RuntimeError(f"STT worker error: {data['error']}")
         result = data.get("result") or data
@@ -93,15 +108,17 @@ def ingest_audio(path: str | Path) -> IngestResult:
         end_raw = s.get("end")
         t0 = float(start_raw) if isinstance(start_raw, (int, float, str)) else 0.0
         t1 = float(end_raw) if isinstance(end_raw, (int, float, str)) else 0.0
-        elements.append(ContentElement(
-            id=f"el_{i:04d}",
-            kind="speech_segment",
-            text=text,
-            t0=t0,
-            t1=t1,
-            speaker=str(s["speaker"]) if s.get("speaker") is not None else None,
-            meta={k: s[k] for k in ("language", "avg_logprob") if s.get(k) is not None},
-        ))
+        elements.append(
+            ContentElement(
+                id=f"el_{i:04d}",
+                kind="speech_segment",
+                text=text,
+                t0=t0,
+                t1=t1,
+                speaker=str(s["speaker"]) if s.get("speaker") is not None else None,
+                meta={k: s[k] for k in ("language", "avg_logprob") if s.get(k) is not None},
+            )
+        )
 
     from .cleaning import clean_elements  # noqa: PLC0415
 
@@ -109,8 +126,13 @@ def ingest_audio(path: str | Path) -> IngestResult:
     elements = [e for e in elements if e.text]
 
     speakers = {e.speaker for e in elements if e.speaker}
-    log.info("transcribed %s: %d segments, %d speaker(s) — %s",
-             path.name, len(elements), len(speakers), report.summary())
+    log.info(
+        "transcribed %s: %d segments, %d speaker(s) — %s",
+        path.name,
+        len(elements),
+        len(speakers),
+        report.summary(),
+    )
     return IngestResult(
         elements=elements,
         title=path.stem,

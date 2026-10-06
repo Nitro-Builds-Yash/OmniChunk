@@ -25,12 +25,14 @@ from .models import (
 log = logging.getLogger(__name__)
 
 _SENT_SPLIT = re.compile(r"(?<=[.!?])\s+")
-_QA_RE = re.compile(r"^(who|what|where|when|why|how|can|could|would|should|is|are|do|does|did)\b", re.I)
+_QA_RE = re.compile(
+    r"^(who|what|where|when|why|how|can|could|would|should|is|are|do|does|did)\b", re.I
+)
 
 
 @dataclass(slots=True)
 class UniversalCutResult:
-    index: int | None                 # boundary before region[index]; None = keep whole
+    index: int | None  # boundary before region[index]; None = keep whole
     vetoes: list[str] = field(default_factory=list)
     overflow: bool = False
     chosen_candidate: BoundaryCandidate | None = None
@@ -39,6 +41,7 @@ class UniversalCutResult:
 
 
 # ───────── Universal Boundary Candidate Generation ─────────
+
 
 def generate_candidates_for_region(
     region: list[ContentElement],
@@ -89,7 +92,11 @@ def generate_candidates_for_region(
         if before.t1 is not None and after.t0 is not None:
             gap = max(0.0, float(after.t0 - before.t1))
             signals["temporal_gap"] = min(1.0, gap / 3.0)
-            if before.speaker != after.speaker and before.speaker is not None and after.speaker is not None:
+            if (
+                before.speaker != after.speaker
+                and before.speaker is not None
+                and after.speaker is not None
+            ):
                 signals["speaker_change"] = 1.0
                 reasons.append(f"speaker change ({before.speaker} → {after.speaker})")
                 # Speaker change is a STRONG soft boundary — not a hard one.
@@ -154,15 +161,17 @@ def generate_candidates_for_region(
         # pause_strength and semantic_shift are counted separately from their
         # parent categories to reward genuinely independent evidence.
         independent_signals = sum(
-            1 for s in (
+            1
+            for s in (
                 signals.get("speaker_change"),
                 signals.get("visual_change") or signals.get("scene_change"),
                 signals.get("temporal_gap"),
                 signals.get("ocr_change"),
                 signals.get("structural_strength"),
-                signals.get("semantic_shift"),   # pre-computed by video_boundary
-                signals.get("pause_strength"),   # counted separately from temporal_gap
-            ) if s and s > 0.5
+                signals.get("semantic_shift"),  # pre-computed by video_boundary
+                signals.get("pause_strength"),  # counted separately from temporal_gap
+            )
+            if s and s > 0.5
         )
         if independent_signals >= 2:
             signals["multimodal_consensus"] = min(1.0, 0.4 + independent_signals * 0.2)
@@ -190,6 +199,7 @@ def generate_candidates_for_region(
 
 # ───────── Boundary Scoring Engine ─────────
 
+
 def score_candidate(
     candidate: BoundaryCandidate,
     graph: ContextGraph,
@@ -216,10 +226,13 @@ def score_candidate(
     score = (
         cfg.weight_structure * signals.get("structural_strength", 0.0)
         + cfg.weight_semantic * signals.get("semantic_shift", 0.0)
-        + cfg.weight_temporal * (
+        + cfg.weight_temporal
+        * (
             signals.get("speaker_change", 0.0)
             + signals.get("temporal_gap", 0.0)
-            + signals.get("pause_strength", 0.0)  # counted separately for consensus but scored together
+            + signals.get(
+                "pause_strength", 0.0
+            )  # counted separately for consensus but scored together
         )
         + cfg.weight_visual * (signals.get("visual_change", 0.0) + signals.get("scene_change", 0.0))
         + cfg.weight_ocr * signals.get("ocr_change", 0.0)
@@ -238,13 +251,17 @@ def score_candidate(
 
 def _check_caption_pair(a: ContentElement, b: ContentElement, graph: ContextGraph) -> str | None:
     for x, y in ((a, b), (b, a)):
-        if (x.kind == "caption" and y.kind in ("table", "figure")
-                and x.id in graph.captions_of(y.id)):
+        if (
+            x.kind == "caption"
+            and y.kind in ("table", "figure")
+            and x.id in graph.captions_of(y.id)
+        ):
             return f"CAPTIONS {x.id} ↔ {y.id}"
     return None
 
 
 # ───────── Universal Boundary Optimizer ─────────
+
 
 def choose_universal_cut(
     region: list[ContentElement],
@@ -284,12 +301,14 @@ def choose_universal_cut(
         # Check hard constraint vetoes
         if cand.veto_reasons:
             all_vetoes.extend(cand.veto_reasons)
-            candidate_trace.append({
-                "index": idx,
-                "status": "vetoed",
-                "reasons": cand.veto_reasons,
-                "signals": cand.signals,
-            })
+            candidate_trace.append(
+                {
+                    "index": idx,
+                    "status": "vetoed",
+                    "reasons": cand.veto_reasons,
+                    "signals": cand.signals,
+                }
+            )
             continue
 
         score, rel_loss, severed = score_candidate(
@@ -298,25 +317,31 @@ def choose_universal_cut(
 
         # If relationship loss is too severe (e.g. cutting caption from float), veto
         if rel_loss >= 1.0:
-            veto_msg = f"cut before {region[idx].id} rejected: high relationship loss ({rel_loss:.2f})"
+            veto_msg = (
+                f"cut before {region[idx].id} rejected: high relationship loss ({rel_loss:.2f})"
+            )
             all_vetoes.append(veto_msg)
-            candidate_trace.append({
-                "index": idx,
-                "status": "vetoed_by_graph_loss",
-                "rel_loss": rel_loss,
-                "severed": severed,
-            })
+            candidate_trace.append(
+                {
+                    "index": idx,
+                    "status": "vetoed_by_graph_loss",
+                    "rel_loss": rel_loss,
+                    "severed": severed,
+                }
+            )
             continue
 
         valid_scored.append((score, cand, severed))
-        candidate_trace.append({
-            "index": idx,
-            "score": round(score, 4),
-            "status": "valid",
-            "rel_loss": round(rel_loss, 4),
-            "signals": cand.signals,
-            "tokens_before": toks_before,
-        })
+        candidate_trace.append(
+            {
+                "index": idx,
+                "score": round(score, 4),
+                "status": "valid",
+                "rel_loss": round(rel_loss, 4),
+                "signals": cand.signals,
+                "tokens_before": toks_before,
+            }
+        )
 
     if not valid_scored:
         return UniversalCutResult(

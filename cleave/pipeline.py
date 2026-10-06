@@ -80,7 +80,8 @@ def run_job(job_id: str, input_paths: list[Path]) -> None:
 
             try:
                 outcome = _process_file(
-                    job, input_path, prefix=f"f{i}_", ledger=ledger, progress=progress)
+                    job, input_path, prefix=f"f{i}_", ledger=ledger, progress=progress
+                )
             except Exception as exc:
                 log.exception("job %s: %s failed", job_id, input_path.name)
                 failures.append((input_path.name, f"{type(exc).__name__}: {exc}"))
@@ -103,19 +104,30 @@ def run_job(job_id: str, input_paths: list[Path]) -> None:
         if job.use_llm and all_units:
             try:
                 from .enrich_entities import enrich_entities_batch  # noqa: PLC0415
+
                 enrich_entities_batch(all_units, max_enrich=15)
             except Exception as exc:
                 log.debug("Entity enrichment step skipped: %s", exc)
 
         set_progress(job, 90, f"{len(all_units)} knowledge units — writing artifacts & syncing…")
-        graph = ({"nodes": graph_nodes, "edges": graph_edges}
-                 if (graph_nodes or graph_edges) else None)
-        _write_artifacts(job, all_units, files_meta, graph, t0,
-                         ledger=ledger, enrichments=enrichments, failures=failures)
+        graph = (
+            {"nodes": graph_nodes, "edges": graph_edges} if (graph_nodes or graph_edges) else None
+        )
+        _write_artifacts(
+            job,
+            all_units,
+            files_meta,
+            graph,
+            t0,
+            ledger=ledger,
+            enrichments=enrichments,
+            failures=failures,
+        )
 
         # Sync to external databases if available
         try:
             from .storage import get_vector_db  # noqa: PLC0415
+
             vdb = get_vector_db()
             if vdb.is_available():
                 vdb.insert_units(all_units)
@@ -175,7 +187,7 @@ def _process_file(job: Job, input_path: Path, *, prefix: str, ledger, progress) 
                 "profile": {
                     "route": "imported",
                     "route_reason": "knowledge units produced by an external modality "
-                                    "worker and imported through the contract",
+                    "worker and imported through the contract",
                 },
                 "cleaning": None,
             }
@@ -223,17 +235,32 @@ def _process_file(job: Job, input_path: Path, *, prefix: str, ledger, progress) 
     if flagged_n:
         from .enrich import enrich  # noqa: PLC0415
 
-        progress(0.7, (f"enriching {flagged_n} context-poor chunks… ({filename})"
-                       if job.use_llm else f"skipping LLM enrichment ({filename})…"))
+        progress(
+            0.7,
+            (
+                f"enriching {flagged_n} context-poor chunks… ({filename})"
+                if job.use_llm
+                else f"skipping LLM enrichment ({filename})…"
+            ),
+        )
         doc_text = "\n\n".join(e.text for e in ingest.elements if e.text)
         enrichment = enrich(
-            units, doc_text, ledger=ledger, use_llm=job.use_llm,
+            units,
+            doc_text,
+            ledger=ledger,
+            use_llm=job.use_llm,
             progress=lambda i, n2: progress(
-                0.7 + 0.25 * i / max(1, n2), f"enriching… {i}/{n2} ({filename})"))
+                0.7 + 0.25 * i / max(1, n2), f"enriching… {i}/{n2} ({filename})"
+            ),
+        )
 
     file_meta = {
-        "filename": filename, "title": ingest.title, "source": ingest.source_uri,
-        "warnings": ingest.warnings, "profile": profile.to_dict(), "cleaning": ingest.cleaning,
+        "filename": filename,
+        "title": ingest.title,
+        "source": ingest.source_uri,
+        "warnings": ingest.warnings,
+        "profile": profile.to_dict(),
+        "cleaning": ingest.cleaning,
     }
     progress(1.0, f"done ({filename})")
     gd = graph.to_dict()
@@ -252,8 +279,12 @@ def _merge_cleaning(cleanings: list[dict | None]) -> dict | None:
         by_rule.update(c.get("by_rule", {}))
     if not total_fixes:
         return None
-    return {"total_fixes": total_fixes, "elements_changed": elements_changed,
-            "chars_removed": chars_removed, "by_rule": dict(by_rule.most_common())}
+    return {
+        "total_fixes": total_fixes,
+        "elements_changed": elements_changed,
+        "chars_removed": chars_removed,
+        "by_rule": dict(by_rule.most_common()),
+    }
 
 
 def _merge_enrichment(parts: list[dict]) -> dict | None:
@@ -265,9 +296,17 @@ def _merge_enrichment(parts: list[dict]) -> dict | None:
     return merged
 
 
-def _write_artifacts(job: Job, units, files_meta: list[dict], graph: dict | None, t0: float, *,
-                     ledger=None, enrichments: list[dict] | None = None,
-                     failures: list[tuple[str, str]] | None = None) -> None:
+def _write_artifacts(
+    job: Job,
+    units,
+    files_meta: list[dict],
+    graph: dict | None,
+    t0: float,
+    *,
+    ledger=None,
+    enrichments: list[dict] | None = None,
+    failures: list[tuple[str, str]] | None = None,
+) -> None:
     """units.json + graph.json + profile.json for one job.
 
     A single-file job writes the same flat schema this always has (``profile``,
@@ -278,14 +317,16 @@ def _write_artifacts(job: Job, units, files_meta: list[dict], graph: dict | None
     from .usage import append_to_cumulative  # noqa: PLC0415
 
     job.dir.mkdir(parents=True, exist_ok=True)
-    (job.dir / "units.json").write_text(
-        json.dumps([u.to_dict() for u in units], indent=1))
+    (job.dir / "units.json").write_text(json.dumps([u.to_dict() for u in units], indent=1))
     if graph is not None:
         (job.dir / "graph.json").write_text(json.dumps(graph, indent=1))
 
     usage = ledger.to_dict() if ledger is not None else None
-    warnings = [w if len(files_meta) == 1 else f"{f['filename']}: {w}"
-               for f in files_meta for w in f["warnings"]]
+    warnings = [
+        w if len(files_meta) == 1 else f"{f['filename']}: {w}"
+        for f in files_meta
+        for w in f["warnings"]
+    ]
     # A file that failed outright is a warning on the job, not a silent absence.
     warnings += [f"{name}: {err}" for name, err in (failures or [])]
     merged_enrichment = _merge_enrichment(enrichments or [])
@@ -294,8 +335,7 @@ def _write_artifacts(job: Job, units, files_meta: list[dict], graph: dict | None
 
     totals = {
         "units": len(units),
-        "tier0_pct": round(
-            100 * sum(1 for u in units if u.context.tier == 0) / max(1, len(units))),
+        "tier0_pct": round(100 * sum(1 for u in units if u.context.tier == 0) / max(1, len(units))),
         "flagged_for_enrichment": sum(1 for u in units if u.decision.escalation_flags),
         "enriched": sum(1 for u in units if u.context.situating_summary),
         # Model calls are counted from the ledger, not per unit: batching means
@@ -333,20 +373,26 @@ def _write_artifacts(job: Job, units, files_meta: list[dict], graph: dict | None
         append_to_cumulative(ledger, job.id)
 
 
-def _link_cross_document_relationships(units: list, files_meta: list[dict], graph_edges: list) -> None:
+def _link_cross_document_relationships(
+    units: list, files_meta: list[dict], graph_edges: list
+) -> None:
     """When a job contains multiple files, detect cross-document references and establish
     typed relationships between units across different uploaded files."""
     file_anchors: dict[str, str] = {}
     for u in units:
         # Find primary anchors for each file (schema cards, section heads, or first unit)
-        fname = Path(u.provenance.source_uri).name if u.provenance and u.provenance.source_uri else ""
+        fname = (
+            Path(u.provenance.source_uri).name if u.provenance and u.provenance.source_uri else ""
+        )
         if not fname:
             continue
         if fname not in file_anchors or u.knowledge_unit_type in ("schema_card", "section"):
             file_anchors[fname] = u.id
 
     for u in units:
-        src_fname = Path(u.provenance.source_uri).name if u.provenance and u.provenance.source_uri else ""
+        src_fname = (
+            Path(u.provenance.source_uri).name if u.provenance and u.provenance.source_uri else ""
+        )
         content_lower = u.content.lower()
         for target_fname, target_uid in file_anchors.items():
             if target_fname == src_fname or target_uid == u.id:
@@ -358,17 +404,21 @@ def _link_cross_document_relationships(units: list, files_meta: list[dict], grap
                 and not any(r.target_id == target_uid for r in u.relationships)
             ):
                 # Found cross-document reference
-                u.relationships.append(Relationship(
-                    type=RelationType.REFERENCES,
-                    target_id=target_uid,
-                    confidence=0.85,
-                    evidence=f"cross-document mention of {target_fname}",
-                ))
-                graph_edges.append({
-                    "source": u.id,
-                    "target": target_uid,
-                    "type": "references",
-                    "confidence": 0.85,
-                    "evidence": f"cross-document mention of {target_fname}",
-                    "importance": 0.80,
-                })
+                u.relationships.append(
+                    Relationship(
+                        type=RelationType.REFERENCES,
+                        target_id=target_uid,
+                        confidence=0.85,
+                        evidence=f"cross-document mention of {target_fname}",
+                    )
+                )
+                graph_edges.append(
+                    {
+                        "source": u.id,
+                        "target": target_uid,
+                        "type": "references",
+                        "confidence": 0.85,
+                        "evidence": f"cross-document mention of {target_fname}",
+                        "importance": 0.80,
+                    }
+                )

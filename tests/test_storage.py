@@ -1,33 +1,29 @@
 """Tests for storage layer connectors and fallbacks."""
 
-import pytest
-from unittest.mock import MagicMock, patch
-
 from cleave.graph import ContextGraph
 from cleave.models import (
     ChunkingDecision,
     ContentElement,
     Context,
     KnowledgeUnit,
-    KnowledgeUnitType,
     Modality,
     Provenance,
 )
-from cleave.storage.graph_db import GraphDB, get_graph_db
-from cleave.storage.object_store import ObjectStore, get_object_store
-from cleave.storage.vector_db import VectorDB, get_vector_db
+from cleave.storage.graph_db import GraphDB
+from cleave.storage.object_store import ObjectStore
+from cleave.storage.vector_db import VectorDB
 
 
 def test_object_store_fallback(tmp_path):
     store = ObjectStore(endpoint_url="http://127.0.0.1:9999")
     store.local_root = tmp_path
-    
+
     key = "test/sample.txt"
     payload = b"Hello, Cleave Storage!"
-    
+
     uri = store.put_object(key, payload)
     assert uri.startswith("file://")
-    
+
     retrieved = store.get_object(uri)
     assert retrieved == payload
 

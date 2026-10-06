@@ -87,6 +87,9 @@ ignore = [
 # Module-level caches guarded by a lock: `global` is the mechanism, not a smell.
 "cleave/llm.py" = ["PLW0603"]
 "cleave/config.py" = ["PLW0603"]
+"cleave/events/producer.py" = ["PLW0603"]
+"cleave/storage/*.py" = ["PLW0603", "PLC0415"]
+"cleave/workers/*.py" = ["PLC0415"]
 
 [tool.ruff.lint.pylint]
 max-args = 8

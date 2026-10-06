@@ -16,7 +16,9 @@ from .models import KnowledgeUnit, Modality, RelationType
 log = logging.getLogger(__name__)
 
 _ANAPHORA_PATTERNS = [
-    re.compile(r"\bas (shown|described|noted|mentioned|discussed) (above|earlier|previously|below)\b", re.I),
+    re.compile(
+        r"\bas (shown|described|noted|mentioned|discussed) (above|earlier|previously|below)\b", re.I
+    ),
     re.compile(r"\bthis (table|figure|section|chart|diagram|approach|result|data)\b", re.I),
     re.compile(r"\bthe (former|latter)\b", re.I),
     re.compile(r"^(This|These|It|They)\b"),
@@ -67,7 +69,9 @@ def evaluate_context_completeness(
     # 2. Tabular schema context
     if unit.metadata.get("element_kind") == "row_group":
         total_checks += 1
-        has_schema_rel = any(r.type in (RelationType.HAS_SCHEMA, "has_schema") for r in unit.relationships)
+        has_schema_rel = any(
+            r.type in (RelationType.HAS_SCHEMA, "has_schema") for r in unit.relationships
+        )
         has_columns = bool(unit.metadata.get("columns"))
         if has_schema_rel and has_columns:
             passed_checks += 1
@@ -96,9 +100,13 @@ def evaluate_context_completeness(
     if anaphora_found:
         if unit.context.leading or unit.context.situating_summary or unit.relationships:
             passed_checks += 1
-            attached.append(f"anaphora situated via surrounding context ({len(anaphora_found)} references)")
+            attached.append(
+                f"anaphora situated via surrounding context ({len(anaphora_found)} references)"
+            )
         else:
-            missing.append(f"dangling anaphoric references: {', '.join(repr(a) for a in anaphora_found[:3])}")
+            missing.append(
+                f"dangling anaphoric references: {', '.join(repr(a) for a in anaphora_found[:3])}"
+            )
     else:
         passed_checks += 1
 
@@ -120,7 +128,9 @@ def evaluate_context_completeness(
             passed_checks += 1
             attached.append(f"visual metadata: {unit.metadata.get('visual_summary')}")
         elif refers_to_visual:
-            missing.append("speech refers to on-screen visual content, but visual metadata is missing")
+            missing.append(
+                "speech refers to on-screen visual content, but visual metadata is missing"
+            )
         else:
             passed_checks += 1
 

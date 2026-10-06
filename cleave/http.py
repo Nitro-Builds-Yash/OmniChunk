@@ -55,7 +55,7 @@ def client() -> httpx.Client:
 def reset_client() -> None:
     """Close and forget the pooled client. For tests, and for a config reload."""
     if not hasattr(client, "cache_info"):
-        return          # a test has swapped the factory out; nothing pooled to close
+        return  # a test has swapped the factory out; nothing pooled to close
     if client.cache_info().currsize:
         try:
             client().close()
@@ -117,13 +117,19 @@ def request_with_retry(
             if response.status_code not in RETRY_STATUS or attempt == attempts - 1:
                 return response
             hinted = _retry_after_seconds(response)
-            delay = min(max_delay, hinted if hinted is not None
-                        else base_delay * (2**attempt))
+            delay = min(max_delay, hinted if hinted is not None else base_delay * (2**attempt))
 
         wait = random.uniform(0, delay)  # noqa: S311 — jitter, not cryptography
         status = response.status_code if response is not None else last_error
-        log.warning("%s %s → %s; retrying in %.1fs (attempt %d/%d)",
-                    method, httpx.URL(url).host, status, wait, attempt + 1, attempts)
+        log.warning(
+            "%s %s → %s; retrying in %.1fs (attempt %d/%d)",
+            method,
+            httpx.URL(url).host,
+            status,
+            wait,
+            attempt + 1,
+            attempts,
+        )
         time.sleep(wait)
 
     if response is not None:

@@ -9,10 +9,10 @@ from .object_store import ObjectStore, get_object_store
 from .vector_db import VectorDB, get_vector_db
 
 __all__ = [
-    "ObjectStore",
-    "get_object_store",
     "GraphDB",
-    "get_graph_db",
+    "ObjectStore",
     "VectorDB",
+    "get_graph_db",
+    "get_object_store",
     "get_vector_db",
 ]

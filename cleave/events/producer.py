@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import os
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
-from typing import Any, Callable
+from typing import Any
 
 from ..http import client
 
@@ -26,7 +26,9 @@ class EventProducer:
     """Publishes ingestion events to Kafka/Redpanda REST proxy or local queue."""
 
     def __init__(self, kafka_rest_url: str | None = None) -> None:
-        self.kafka_rest_url = kafka_rest_url or os.environ.get("REDPANDA_REST_URL", "http://127.0.0.1:9644")
+        self.kafka_rest_url = kafka_rest_url or os.environ.get(
+            "REDPANDA_REST_URL", "http://127.0.0.1:9644"
+        )
         self._local_subscribers: dict[str, list[Callable[[IngestionEvent], None]]] = {}
         self._available: bool | None = None
 
@@ -47,7 +49,7 @@ class EventProducer:
     def publish(self, topic: str, event: IngestionEvent) -> bool:
         """Publish event to topic. Falls back to local in-memory listeners."""
         payload = asdict(event)
-        
+
         # 1. Attempt Redpanda/Kafka REST proxy if available
         if self.is_available():
             try:

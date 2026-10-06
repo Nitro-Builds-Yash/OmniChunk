@@ -7,9 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
 
-from .config import settings
 from .llm import get_provider
 from .models import KnowledgeUnit
 
@@ -47,7 +45,7 @@ def enrich_entities_batch(units: list[KnowledgeUnit], max_enrich: int = 10) -> l
 
         prompt = NER_PROMPT_TEMPLATE.replace("{text}", u.content[:2000])
         try:
-            resp_text, usage = provider.complete_json(prompt)
+            resp_text, _usage = provider.complete_json(prompt)
             if resp_text:
                 data = json.loads(resp_text)
                 extracted_entities = data.get("entities", [])

@@ -1,4 +1,4 @@
-﻿"""Multimodal Late-Fusion Chunker: Universal Boundary Decision approach.
+"""Multimodal Late-Fusion Chunker: Universal Boundary Decision approach.
 
 Architecture (new)
 ──────────────────
@@ -35,7 +35,7 @@ Backward compatibility
 from __future__ import annotations
 
 import logging
-from typing import Callable
+from collections.abc import Callable
 
 from .conversational import classify_conversational_elements
 from .graph import ContextGraph
@@ -81,6 +81,7 @@ def chunk_multimodal_stream(
     if not has_visuals:
         # Audio-only: delegate to the temporal chunker (speaker turn boundaries)
         from .chunkers import _temporal_units  # noqa: PLC0415
+
         return _temporal_units(stream, graph, new_unit_id, base_provenance, title)
 
     # ── Universal Boundary Decision ──────────────────────────────────────────
@@ -128,9 +129,7 @@ def chunk_multimodal_stream(
         content = _build_content(t0, t1, visual_els, speech_segs, fuse_label)
 
         # All speakers present in the window (attribution preserved on elements)
-        speakers = list(dict.fromkeys(
-            s.speaker for s in speech_segs if s.speaker
-        ))
+        speakers = list(dict.fromkeys(s.speaker for s in speech_segs if s.speaker))
         speaker_str = ", ".join(speakers) if speakers else None
 
         # Entities from visual meta
@@ -140,10 +139,13 @@ def chunk_multimodal_stream(
 
         # Check if any elements are synthetic (evaluation fallback data)
         is_synthetic = any(e.meta.get("synthetic") for e in win_elements)
-        extraction_modes = list(dict.fromkeys(
-            e.meta.get("extraction_mode", "unknown") for e in win_elements
-            if e.meta.get("extraction_mode")
-        ))
+        extraction_modes = list(
+            dict.fromkeys(
+                e.meta.get("extraction_mode", "unknown")
+                for e in win_elements
+                if e.meta.get("extraction_mode")
+            )
+        )
 
         # Assemble metadata — preserve all existing keys, extend with new ones
         metadata: dict = {
@@ -162,10 +164,14 @@ def chunk_multimodal_stream(
             metadata["extraction_mode"] = "synthetic_fallback"
             metadata["data_confidence"] = 0.0
         elif extraction_modes:
-            metadata["extraction_mode"] = extraction_modes[0] if len(extraction_modes) == 1 else extraction_modes
+            metadata["extraction_mode"] = (
+                extraction_modes[0] if len(extraction_modes) == 1 else extraction_modes
+            )
 
         # Decide reason string from boundary signals
-        signals_str = ", ".join(boundary_meta.get("contributing_signals", [])) or "temporal continuity"
+        signals_str = (
+            ", ".join(boundary_meta.get("contributing_signals", [])) or "temporal continuity"
+        )
         reason = (
             f"Universal boundary event [{t0:.1f}s\u2013{t1:.1f}s]: "
             f"{len(speech_segs)} speech + {len(visual_els)} visual elements fused "
@@ -207,9 +213,7 @@ def chunk_multimodal_stream(
                 "contributing_signals": boundary_meta.get("contributing_signals", []),
                 "fusion_score": fuse_score,
                 "fusion_label": fuse_label,
-                "speaker_attribution": {
-                    s.id: s.speaker for s in speech_segs if s.speaker
-                },
+                "speaker_attribution": {s.id: s.speaker for s in speech_segs if s.speaker},
             },
         )
 
@@ -220,6 +224,7 @@ def chunk_multimodal_stream(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def _build_content(
     t0: float,

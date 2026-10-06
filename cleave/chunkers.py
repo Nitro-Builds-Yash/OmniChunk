@@ -59,8 +59,10 @@ def chunk(ingest: IngestResult, graph: ContextGraph) -> tuple[list[KnowledgeUnit
 
     def base_provenance(first: ContentElement) -> Provenance:
         return Provenance(
-            source_uri=ingest.source_uri, source_sha256=ingest.sha256,
-            page=first.page, bbox=first.bbox,
+            source_uri=ingest.source_uri,
+            source_sha256=ingest.sha256,
+            page=first.page,
+            bbox=first.bbox,
         )
 
     # 1 — atomic floats first, regardless of route
@@ -72,8 +74,7 @@ def chunk(ingest: IngestResult, graph: ContextGraph) -> tuple[list[KnowledgeUnit
         captions = [graph.by_id[c] for c in cap_ids if c in graph.by_id]
         consumed.add(e.id)
         consumed.update(c.id for c in captions)
-        for u in _atomic_units(e, captions, graph, new_unit_id, base_provenance,
-                               ingest.title):
+        for u in _atomic_units(e, captions, graph, new_unit_id, base_provenance, ingest.title):
             units.append(u)
             members_by_unit[u.id] = [e.id] + [c.id for c in captions]
             # first unit wins: an element split across units belongs to its start
@@ -92,21 +93,32 @@ def chunk(ingest: IngestResult, graph: ContextGraph) -> tuple[list[KnowledgeUnit
         el_to_unit.clear()
         members_by_unit.clear()
         counter = 0
-        text_units = _tabular_units([e for e in elements if e.kind == "table"],
-                                    new_unit_id, base_provenance, ingest)
+        text_units = _tabular_units(
+            [e for e in elements if e.kind == "table"], new_unit_id, base_provenance, ingest
+        )
     elif profile.route == "temporal":
         if any(e.kind in ("visual_event", "slide") for e in stream):
             from .chunkers_multimodal import chunk_multimodal_stream  # noqa: PLC0415
-            text_units = chunk_multimodal_stream(stream, graph, new_unit_id, base_provenance, ingest.title)
+
+            text_units = chunk_multimodal_stream(
+                stream, graph, new_unit_id, base_provenance, ingest.title
+            )
         else:
             text_units = _temporal_units(stream, graph, new_unit_id, base_provenance, ingest.title)
     elif profile.route == "structural":
-        text_units = _structural_units(stream, graph, new_unit_id, base_provenance,
-                                       ingest.title, profile)
+        text_units = _structural_units(
+            stream, graph, new_unit_id, base_provenance, ingest.title, profile
+        )
     else:
         text_units, actual = _packed_units(
-            stream, graph, new_unit_id, base_provenance,
-            ingest.title, profile, strategy="paragraph_fallback")
+            stream,
+            graph,
+            new_unit_id,
+            base_provenance,
+            ingest.title,
+            profile,
+            strategy="paragraph_fallback",
+        )
         profile.route_actual = actual
         if actual != profile.route:
             # The router asked whether the embedding model *could* run; this is
@@ -125,8 +137,9 @@ def chunk(ingest: IngestResult, graph: ContextGraph) -> tuple[list[KnowledgeUnit
     order = {e.id: i for i, e in enumerate(elements)}
     emitted = {u.id: i for i, u in enumerate(units)}
     first_pos = {
-        u.id: min((order.get(eid, 1 << 30) for eid in members_by_unit.get(u.id, ())),
-                  default=1 << 30)
+        u.id: min(
+            (order.get(eid, 1 << 30) for eid in members_by_unit.get(u.id, ())), default=1 << 30
+        )
         for u in units
     }
     units.sort(key=lambda u: (first_pos[u.id], emitted[u.id]))
@@ -143,8 +156,15 @@ def chunk(ingest: IngestResult, graph: ContextGraph) -> tuple[list[KnowledgeUnit
 
 # ───────── atomic ─────────
 
-def _atomic_units(e: ContentElement, captions: list[ContentElement],
-                  graph: ContextGraph, new_unit_id, base_provenance, title):
+
+def _atomic_units(
+    e: ContentElement,
+    captions: list[ContentElement],
+    graph: ContextGraph,
+    new_unit_id,
+    base_provenance,
+    title,
+):
     cap_text = " ".join(c.text for c in captions).strip()
     heading_path = graph.heading_path(e.id)
     grid: list[list[str]] = e.meta.get("grid", [])
@@ -152,27 +172,43 @@ def _atomic_units(e: ContentElement, captions: list[ContentElement],
     leading, trailing = graph.surrounding_text(e.id)
 
     def make(content: str, reason: str, vetoed: list[str], part: str | None = None):
-        flags = escalation_flags(content, heading_path, "atomic",
-                                 kind=e.kind, has_caption=bool(cap_text))
-        ku_type = KnowledgeUnitType.TABLE.value if e.kind == "table" else (
-            KnowledgeUnitType.FIGURE.value if e.kind == "figure" else KnowledgeUnitType.GENERIC.value
+        flags = escalation_flags(
+            content, heading_path, "atomic", kind=e.kind, has_caption=bool(cap_text)
+        )
+        ku_type = (
+            KnowledgeUnitType.TABLE.value
+            if e.kind == "table"
+            else (
+                KnowledgeUnitType.FIGURE.value
+                if e.kind == "figure"
+                else KnowledgeUnitType.GENERIC.value
+            )
         )
         return KnowledgeUnit(
             id=new_unit_id(),
             content=content,
             modality=Modality.DOCUMENT,
-            context=Context(document_title=title, heading_path=heading_path,
-                            leading=leading, trailing=trailing),
+            context=Context(
+                document_title=title, heading_path=heading_path, leading=leading, trailing=trailing
+            ),
             provenance=base_provenance(e),
             decision=ChunkingDecision(
-                strategy="atomic", reason=reason, vetoed_cuts=vetoed,
+                strategy="atomic",
+                reason=reason,
+                vetoed_cuts=vetoed,
                 escalation_flags=flags,
-                signals={"caption_confidence":
-                         1.0 if e.meta.get("caption_ids") else (0.8 if cap_text else 0.0)},
+                signals={
+                    "caption_confidence": 1.0
+                    if e.meta.get("caption_ids")
+                    else (0.8 if cap_text else 0.0)
+                },
             ),
-            metadata={"element_kind": e.kind, "granularity": "adaptive",
-                      "size_reason": ["atomic_float_integrity"],
-                      **({"part": part} if part else {})},
+            metadata={
+                "element_kind": e.kind,
+                "granularity": "adaptive",
+                "size_reason": ["atomic_float_integrity"],
+                **({"part": part} if part else {}),
+            },
             token_count=count_tokens(content),
             knowledge_unit_type=ku_type,
         )
@@ -183,8 +219,11 @@ def _atomic_units(e: ContentElement, captions: list[ContentElement],
         full = f"[uncaptioned {e.kind} on page {e.page}]"
 
     if count_tokens(full) <= MAX_TOKENS or not grid:
-        reason = (f"{e.kind} kept whole with its caption — severing the pair is vetoed"
-                  if cap_text else f"{e.kind} kept as one unit")
+        reason = (
+            f"{e.kind} kept whole with its caption — severing the pair is vetoed"
+            if cap_text
+            else f"{e.kind} kept as one unit"
+        )
         yield make(full, reason, vetoed=[])
         return
 
@@ -202,8 +241,10 @@ def _atomic_units(e: ContentElement, captions: list[ContentElement],
         content = "\n".join(x for x in (cap_text, head_md, rows_md) if x)
         u = make(
             content,
-            reason=(f"table exceeds {MAX_TOKENS} tokens — split by rows; cutting through "
-                    "the header is vetoed, so it repeats on every part"),
+            reason=(
+                f"table exceeds {MAX_TOKENS} tokens — split by rows; cutting through "
+                "the header is vetoed, so it repeats on every part"
+            ),
             vetoed=[f"cut inside table {e.id} without header rejected: header repeated instead"],
             part=f"{part_no}",
         )
@@ -229,6 +270,7 @@ def _atomic_units(e: ContentElement, captions: list[ContentElement],
 
 # ───────── structural ─────────
 
+
 def _structural_units(stream, graph, new_unit_id, base_provenance, title, profile):
     """One unit per innermost section; oversized sections split at veto-checked
     paragraph boundaries, children inheriting the full heading path."""
@@ -246,15 +288,24 @@ def _structural_units(stream, graph, new_unit_id, base_provenance, title, profil
 
     out = []
     for sec in sections:
-        out.extend(_emit_region(sec, graph, new_unit_id, base_provenance, title,
-                                strategy="structural", profile=profile))
+        out.extend(
+            _emit_region(
+                sec,
+                graph,
+                new_unit_id,
+                base_provenance,
+                title,
+                strategy="structural",
+                profile=profile,
+            )
+        )
     return out
 
 
 # ───────── flat prose fallback ─────────
 
-def _packed_units(stream, graph, new_unit_id, base_provenance, title, profile,
-                  strategy: str):
+
+def _packed_units(stream, graph, new_unit_id, base_provenance, title, profile, strategy: str):
     """Pack the whole stream to ~TARGET tokens, boundaries only between
     elements, same veto rules. When the embedding model is available, topic
     drift picks the groups first (strategy upgrades to 'semantic')."""
@@ -274,44 +325,90 @@ def _packed_units(stream, graph, new_unit_id, base_provenance, title, profile,
     if groups and len(groups) > 1:
         out = []
         for g in groups:
-            out.extend(_emit_region(g, graph, new_unit_id, base_provenance, title,
-                                    strategy="semantic", profile=profile))
+            out.extend(
+                _emit_region(
+                    g,
+                    graph,
+                    new_unit_id,
+                    base_provenance,
+                    title,
+                    strategy="semantic",
+                    profile=profile,
+                )
+            )
         return out, "semantic"
-    units = _emit_region(stream, graph, new_unit_id, base_provenance, title,
-                         strategy=strategy, profile=profile)
+    units = _emit_region(
+        stream, graph, new_unit_id, base_provenance, title, strategy=strategy, profile=profile
+    )
     if reason:
         log.info("packed at paragraph boundaries: %s", reason)
     return units, strategy
 
 
-def _emit_region(region, graph, new_unit_id, base_provenance, title,
-                 strategy: str, profile: Profile):
+def _emit_region(
+    region, graph, new_unit_id, base_provenance, title, strategy: str, profile: Profile
+):
     out = []
     queue = [r for r in (region,) if r]
     while queue:
         reg = queue.pop(0)
         tokens = sum(count_tokens(e.text) for e in reg)
         if tokens <= MAX_TOKENS:
-            out.append(_text_unit(reg, graph, new_unit_id, base_provenance, title,
-                                  strategy, reason=_whole_reason(reg, strategy, tokens),
-                                  vetoed=[], overflow=False, profile=profile))
+            out.append(
+                _text_unit(
+                    reg,
+                    graph,
+                    new_unit_id,
+                    base_provenance,
+                    title,
+                    strategy,
+                    reason=_whole_reason(reg, strategy, tokens),
+                    vetoed=[],
+                    overflow=False,
+                    profile=profile,
+                )
+            )
             continue
         cut = choose_cut(reg, graph)
         if cut.index is None:
-            out.append(_text_unit(reg, graph, new_unit_id, base_provenance, title,
-                                  strategy,
-                                  reason=(f"{tokens} tokens with no safe boundary — kept whole "
-                                          "(overflow beats severing a relationship)"),
-                                  vetoed=cut.vetoes, overflow=True, profile=profile,
-                                  trace=cut.trace))
+            out.append(
+                _text_unit(
+                    reg,
+                    graph,
+                    new_unit_id,
+                    base_provenance,
+                    title,
+                    strategy,
+                    reason=(
+                        f"{tokens} tokens with no safe boundary — kept whole "
+                        "(overflow beats severing a relationship)"
+                    ),
+                    vetoed=cut.vetoes,
+                    overflow=True,
+                    profile=profile,
+                    trace=cut.trace,
+                )
+            )
             continue
-        left, right = reg[:cut.index], reg[cut.index:]
-        out.append(_text_unit(left, graph, new_unit_id, base_provenance, title,
-                              strategy,
-                              reason=(f"section of {tokens} tokens split at the paragraph "
-                                      f"boundary nearest {TARGET_TOKENS} tokens"),
-                              vetoed=cut.vetoes, overflow=False, profile=profile,
-                              trace=cut.trace))
+        left, right = reg[: cut.index], reg[cut.index :]
+        out.append(
+            _text_unit(
+                left,
+                graph,
+                new_unit_id,
+                base_provenance,
+                title,
+                strategy,
+                reason=(
+                    f"section of {tokens} tokens split at the paragraph "
+                    f"boundary nearest {TARGET_TOKENS} tokens"
+                ),
+                vetoed=cut.vetoes,
+                overflow=False,
+                profile=profile,
+                trace=cut.trace,
+            )
+        )
         queue.insert(0, right)
     return out
 
@@ -323,14 +420,26 @@ def _whole_reason(reg, strategy: str, tokens: int) -> str:
             return f"section {head[:60]!r} is {tokens} tokens — under budget, kept whole"
         return f"section is {tokens} tokens — under budget, kept whole"
     if strategy == "semantic":
-        return (f"topic-coherent run of {len(reg)} paragraphs ({tokens} tokens) — "
-                "boundary where embedding similarity dips below mean − 1σ")
+        return (
+            f"topic-coherent run of {len(reg)} paragraphs ({tokens} tokens) — "
+            "boundary where embedding similarity dips below mean − 1σ"
+        )
     return f"{len(reg)} paragraphs packed to {tokens} tokens at paragraph boundaries"
 
 
-def _text_unit(members, graph, new_unit_id, base_provenance, title,
-               strategy: str, reason: str, vetoed: list[str], overflow: bool,
-               profile: Profile, trace: dict | None = None):
+def _text_unit(
+    members,
+    graph,
+    new_unit_id,
+    base_provenance,
+    title,
+    strategy: str,
+    reason: str,
+    vetoed: list[str],
+    overflow: bool,
+    profile: Profile,
+    trace: dict | None = None,
+):
     content = "\n\n".join(e.text for e in members if e.text)
     anchor = members[0]
     heading_path = graph.heading_path(anchor.id)
@@ -339,7 +448,11 @@ def _text_unit(members, graph, new_unit_id, base_provenance, title,
         heading_path = [*heading_path, anchor.text]
     flags = escalation_flags(content, heading_path, strategy)
 
-    ku_type = KnowledgeUnitType.SECTION.value if anchor.kind == "heading" else KnowledgeUnitType.NARRATIVE.value
+    ku_type = (
+        KnowledgeUnitType.SECTION.value
+        if anchor.kind == "heading"
+        else KnowledgeUnitType.NARRATIVE.value
+    )
 
     unit = KnowledgeUnit(
         id=new_unit_id(),
@@ -348,7 +461,9 @@ def _text_unit(members, graph, new_unit_id, base_provenance, title,
         context=Context(document_title=title, heading_path=heading_path),
         provenance=base_provenance(anchor),
         decision=ChunkingDecision(
-            strategy=strategy, reason=reason, vetoed_cuts=vetoed,
+            strategy=strategy,
+            reason=reason,
+            vetoed_cuts=vetoed,
             escalation_flags=flags,
             signals={
                 "tokens": float(sum(count_tokens(e.text) for e in members)),
@@ -369,6 +484,7 @@ def _text_unit(members, graph, new_unit_id, base_provenance, title,
 
 
 # ───────── tabular (CSV / XLSX) ─────────
+
 
 def _tabular_units(tables, new_unit_id, base_provenance, ingest):
     """One schema card per sheet, then header-repeating row groups."""
@@ -400,15 +516,23 @@ def _tabular_units(tables, new_unit_id, base_provenance, ingest):
             provenance=base_provenance(t),
             decision=ChunkingDecision(
                 strategy="tabular",
-                reason=(f"schema card for {'sheet ' + repr(sheet) if sheet else 'the dataset'} — "
-                        f"{prof.row_count:,} rows × {prof.column_count} columns profiled by type, "
-                        "range and cardinality so the dataset is searchable by shape"),
+                reason=(
+                    f"schema card for {'sheet ' + repr(sheet) if sheet else 'the dataset'} — "
+                    f"{prof.row_count:,} rows × {prof.column_count} columns profiled by type, "
+                    "range and cardinality so the dataset is searchable by shape"
+                ),
                 signals={"rows": float(prof.row_count), "columns": float(prof.column_count)},
-                escalation_flags=["dataset summary — a one-line description of what these "
-                                  "columns represent cannot be derived from structure alone"],
+                escalation_flags=[
+                    "dataset summary — a one-line description of what these "
+                    "columns represent cannot be derived from structure alone"
+                ],
             ),
-            metadata={"element_kind": "schema_card", "granularity": "adaptive",
-                      "size_reason": ["dataset_schema_profiling"], **prof.to_meta()},
+            metadata={
+                "element_kind": "schema_card",
+                "granularity": "adaptive",
+                "size_reason": ["dataset_schema_profiling"],
+                **prof.to_meta(),
+            },
             token_count=count_tokens(prof.schema_card(source_name)),
             knowledge_unit_type=KnowledgeUnitType.SCHEMA_CARD.value,
         )
@@ -418,7 +542,7 @@ def _tabular_units(tables, new_unit_id, base_provenance, ingest):
         groups = row_groups(grid, header)
         for gi, (start, rows) in enumerate(groups, start=1):
             content = render_group(header, rows)
-            first_row = start + 2          # +1 for header, +1 for 1-based rows
+            first_row = start + 2  # +1 for header, +1 for 1-based rows
             last_row = first_row + len(rows) - 1
             unit = KnowledgeUnit(
                 id=new_unit_id(),
@@ -428,33 +552,57 @@ def _tabular_units(tables, new_unit_id, base_provenance, ingest):
                 provenance=base_provenance(t),
                 decision=ChunkingDecision(
                     strategy="tabular",
-                    reason=(f"rows {first_row:,}–{last_row:,} of "
-                            f"{'sheet ' + repr(sheet) if sheet else source_name} "
-                            f"({gi} of {len(groups)}) — cut between rows, never through one"),
-                    signals={"rows_in_chunk": float(len(rows)),
-                             "first_row": float(first_row), "last_row": float(last_row)},
-                    vetoed_cuts=["a row group without its header is data with no schema — "
-                                 "header repeated instead of split away"],
+                    reason=(
+                        f"rows {first_row:,}–{last_row:,} of "
+                        f"{'sheet ' + repr(sheet) if sheet else source_name} "
+                        f"({gi} of {len(groups)}) — cut between rows, never through one"
+                    ),
+                    signals={
+                        "rows_in_chunk": float(len(rows)),
+                        "first_row": float(first_row),
+                        "last_row": float(last_row),
+                    },
+                    vetoed_cuts=[
+                        "a row group without its header is data with no schema — "
+                        "header repeated instead of split away"
+                    ],
                 ),
-                relationships=[Relationship(RelationType.HAS_SCHEMA, card_id, 1.0,
-                                            "column types and ranges for these rows")],
-                metadata={"element_kind": "row_group", "sheet": sheet,
-                          "first_row": first_row, "last_row": last_row,
-                          "columns": header, "granularity": "adaptive",
-                          "size_reason": ["row_boundary_integrity", "header_repetition"]},
+                relationships=[
+                    Relationship(
+                        RelationType.HAS_SCHEMA,
+                        card_id,
+                        1.0,
+                        "column types and ranges for these rows",
+                    )
+                ],
+                metadata={
+                    "element_kind": "row_group",
+                    "sheet": sheet,
+                    "first_row": first_row,
+                    "last_row": last_row,
+                    "columns": header,
+                    "granularity": "adaptive",
+                    "size_reason": ["row_boundary_integrity", "header_repetition"],
+                },
                 token_count=count_tokens(content),
                 knowledge_unit_type=KnowledgeUnitType.ROW_GROUP.value,
             )
             if unit.token_count > TABULAR_MAX_TOKENS:
                 unit.decision.signals["overflow"] = 1.0
             out.append((unit, [t.id]))
-            card.relationships.append(Relationship(
-                RelationType.SCHEMA_OF, unit.id, 1.0,
-                f"describes rows {first_row:,}–{last_row:,}"))
+            card.relationships.append(
+                Relationship(
+                    RelationType.SCHEMA_OF,
+                    unit.id,
+                    1.0,
+                    f"describes rows {first_row:,}–{last_row:,}",
+                )
+            )
     return out
 
 
 # ───────── temporal (stretch — exercised by audio/video elements) ─────────
+
 
 def _temporal_units(stream, graph, new_unit_id, base_provenance, title):
     """Speaker change = hard boundary; turns <3s of the SAME speaker merge;
@@ -486,10 +634,7 @@ def _temporal_units(stream, graph, new_unit_id, base_provenance, title):
     merged: list[list[ContentElement]] = []
     for t in turns:
         dur = (t[-1].t1 or 0) - (t[0].t0 or 0)
-        same_voice = merged and (
-            t[0].speaker is None
-            or t[0].speaker == merged[-1][-1].speaker
-        )
+        same_voice = merged and (t[0].speaker is None or t[0].speaker == merged[-1][-1].speaker)
         if merged and dur < 3.0 and same_voice:
             merged[-1].extend(t)
         else:
@@ -514,20 +659,22 @@ def _temporal_units(stream, graph, new_unit_id, base_provenance, title):
                 provenance=base_provenance(span[0]),
                 decision=ChunkingDecision(
                     strategy="temporal",
-                    reason=(f"speaker turn ({speaker or 'unknown'}), "
-                            f"{(span[-1].t1 or 0) - (span[0].t0 or 0):.0f}s — "
-                            "turn boundaries are chunk boundaries"),
+                    reason=(
+                        f"speaker turn ({speaker or 'unknown'}), "
+                        f"{(span[-1].t1 or 0) - (span[0].t0 or 0):.0f}s — "
+                        "turn boundaries are chunk boundaries"
+                    ),
                     escalation_flags=escalation_flags(content, [], "temporal"),
                 ),
-                temporal=Temporal(start_s=span[0].t0 or 0.0, end_s=span[-1].t1 or 0.0,
-                                  speaker=speaker),
+                temporal=Temporal(
+                    start_s=span[0].t0 or 0.0, end_s=span[-1].t1 or 0.0, speaker=speaker
+                ),
                 metadata=merged_meta,
                 token_count=count_tokens(content),
                 knowledge_unit_type=ku_type,
             )
             out.append((unit, [e.id for e in span]))
     return out
-
 
 
 def _merge_span_meta(span) -> dict:
@@ -556,14 +703,17 @@ def _split_long_turn(turn, max_s: float = 120.0):
     if dur <= max_s or len(turn) < 2:
         yield turn
         return
-    gaps = [(float((b.t0 or 0) - (a.t1 or 0)), i)
-            for i, (a, b) in enumerate(zip(turn, turn[1:]), start=1)]
+    gaps = [
+        (float((b.t0 or 0) - (a.t1 or 0)), i)
+        for i, (a, b) in enumerate(zip(turn, turn[1:]), start=1)
+    ]
     _, cut = max(gaps)
     yield from _split_long_turn(turn[:cut], max_s)
     yield from _split_long_turn(turn[cut:], max_s)
 
 
 # ───────── relationship projection & hierarchy ─────────
+
 
 def _project_relationships(units, el_to_unit, graph: ContextGraph) -> None:
     """Element edges → unit edges where endpoints land in different units,
@@ -581,10 +731,14 @@ def _project_relationships(units, el_to_unit, graph: ContextGraph) -> None:
         if key in _seen[su]:
             continue
         _seen[su].add(key)
-        by_id[su].relationships.append(Relationship(
-            type=RelationType.REFERENCES, target_id=du,
-            confidence=d["confidence"], evidence=d["evidence"],
-        ))
+        by_id[su].relationships.append(
+            Relationship(
+                type=RelationType.REFERENCES,
+                target_id=du,
+                confidence=d["confidence"],
+                evidence=d["evidence"],
+            )
+        )
     for a, b in zip(units, units[1:]):
         a.relationships.append(Relationship(RelationType.NEXT, b.id, 1.0, "reading order"))
         b.relationships.append(Relationship(RelationType.PREVIOUS, a.id, 1.0, "reading order"))
@@ -600,8 +754,10 @@ def _link_hierarchical_units(units: list[KnowledgeUnit]) -> None:
 
     # Pre-build per-unit relationship keys for O(1) dedup
     _rel_keys: dict[str, set[tuple[str, str]]] = {
-        u.id: {(r.type if isinstance(r.type, str) else r.type.value, r.target_id)
-               for r in u.relationships}
+        u.id: {
+            (r.type if isinstance(r.type, str) else r.type.value, r.target_id)
+            for r in u.relationships
+        }
         for u in units
     }
 
@@ -614,9 +770,13 @@ def _link_hierarchical_units(units: list[KnowledgeUnit]) -> None:
                     parent.child_ids.append(child.id)
                 p_key = (RelationType.PARENT_OF.value, child.id)
                 if p_key not in _rel_keys[parent.id]:
-                    parent.relationships.append(Relationship(RelationType.PARENT_OF, child.id, 1.0, "section hierarchy"))
+                    parent.relationships.append(
+                        Relationship(RelationType.PARENT_OF, child.id, 1.0, "section hierarchy")
+                    )
                     _rel_keys[parent.id].add(p_key)
                 c_key = (RelationType.CHILD_OF.value, parent.id)
                 if c_key not in _rel_keys[child.id]:
-                    child.relationships.append(Relationship(RelationType.CHILD_OF, parent.id, 1.0, "section hierarchy"))
+                    child.relationships.append(
+                        Relationship(RelationType.CHILD_OF, parent.id, 1.0, "section hierarchy")
+                    )
                     _rel_keys[child.id].add(c_key)

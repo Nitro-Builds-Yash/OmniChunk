@@ -58,21 +58,20 @@ def load_contract(path: str | Path) -> tuple[IngestResult | None, list[Knowledge
     prefix = path.stem[:12]
 
     if payload.get("units"):
-        units = [_unit_from(d, source_uri, prefix, i)
-                 for i, d in enumerate(payload["units"])]
+        units = [_unit_from(d, source_uri, prefix, i) for i, d in enumerate(payload["units"])]
         log.info("contract import: %d finished units from %s", len(units), path.name)
         return None, units
 
-    elements = [_element_from(d, prefix, i)
-                for i, d in enumerate(payload.get("elements", []))]
+    elements = [_element_from(d, prefix, i) for i, d in enumerate(payload.get("elements", []))]
     if not elements:
         raise ValueError("contract file contains neither 'units' nor 'elements'")
 
     from .cleaning import clean_elements  # noqa: PLC0415
 
     report = clean_elements(elements)
-    log.info("contract import: %d elements from %s — %s",
-             len(elements), path.name, report.summary())
+    log.info(
+        "contract import: %d elements from %s — %s", len(elements), path.name, report.summary()
+    )
     return IngestResult(
         elements=elements,
         title=payload.get("title") or path.stem,
@@ -156,8 +155,15 @@ def _unit_from(d: dict[str, Any], source_uri: str, prefix: str, i: int) -> Knowl
             for r in (d.get("relationships") or [])
             if r.get("type") in {t.value for t in RelationType}
         ],
-        temporal=(Temporal(start_s=float(temp["start_s"]), end_s=float(temp["end_s"]),
-                           speaker=temp.get("speaker")) if temp else None),
+        temporal=(
+            Temporal(
+                start_s=float(temp["start_s"]),
+                end_s=float(temp["end_s"]),
+                speaker=temp.get("speaker"),
+            )
+            if temp
+            else None
+        ),
         entities=list(d.get("entities") or []),
         metadata=d.get("metadata") or {},
         token_count=int(d.get("token_count") or count_tokens(content)),

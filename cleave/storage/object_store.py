@@ -6,11 +6,9 @@ from __future__ import annotations
 
 import logging
 import os
-import shutil
 from pathlib import Path
 from typing import BinaryIO
 
-from ..config import settings
 from ..http import client
 
 log = logging.getLogger(__name__)
@@ -20,7 +18,9 @@ class ObjectStore:
     """S3/MinIO compatible object store client with local filesystem fallback."""
 
     def __init__(self, endpoint_url: str | None = None, bucket: str = "cleave-raw") -> None:
-        self.endpoint_url = endpoint_url or os.environ.get("MINIO_ENDPOINT", "http://127.0.0.1:9000")
+        self.endpoint_url = endpoint_url or os.environ.get(
+            "MINIO_ENDPOINT", "http://127.0.0.1:9000"
+        )
         self.bucket = bucket
         self.local_root = Path("data/objects")
         self.local_root.mkdir(parents=True, exist_ok=True)
@@ -39,16 +39,18 @@ class ObjectStore:
     def put_object(self, key: str, data: bytes | BinaryIO) -> str:
         """Store an object and return its canonical URI."""
         key = key.lstrip("/")
-        if isinstance(data, bytes):
-            payload = data
-        else:
-            payload = data.read()
+        payload = data if isinstance(data, bytes) else data.read()
 
         if self.is_minio_available():
             try:
                 # Basic S3/MinIO PUT endpoint via HTTP
                 url = f"{self.endpoint_url}/{self.bucket}/{key}"
-                resp = client().put(url, content=payload, headers={"Content-Type": "application/octet-stream"}, timeout=10.0)
+                resp = client().put(
+                    url,
+                    content=payload,
+                    headers={"Content-Type": "application/octet-stream"},
+                    timeout=10.0,
+                )
                 if resp.status_code in (200, 201):
                     log.debug("Stored %s in MinIO at %s", key, url)
                     return f"s3://{self.bucket}/{key}"

@@ -45,7 +45,7 @@ def fixed_chunks(ingest: IngestResult) -> list[str]:
     ids = enc.encode(text, disallowed_special=())
     out, start = [], 0
     while start < len(ids):
-        out.append(enc.decode(ids[start:start + FIXED_TOKENS]))
+        out.append(enc.decode(ids[start : start + FIXED_TOKENS]))
         start += FIXED_TOKENS - FIXED_OVERLAP
     return out
 
@@ -77,8 +77,9 @@ class ArmScore:
         ratios = [t.preserved / t.total for _, t in metrics if t.total]
         return {
             "cps_pct": round(100 * sum(ratios) / len(ratios), 1) if ratios else None,
-            "metrics": [{"name": n, "preserved": t.preserved, "total": t.total}
-                        for n, t in metrics],
+            "metrics": [
+                {"name": n, "preserved": t.preserved, "total": t.total} for n, t in metrics
+            ],
         }
 
 
@@ -113,17 +114,20 @@ def score_document(path: str, fixed: ArmScore, cleave: ArmScore) -> None:
 
         if cap_probe and body_probe:
             fixed.caption.add(any(cap_probe in f_chunks[i] for i in f_find(body_probe)))
-            cleave.caption.add(any(body_probe in text_n and cap_probe in text_n
-                                   for text_n, _u in c_units))
+            cleave.caption.add(
+                any(body_probe in text_n and cap_probe in text_n for text_n, _u in c_units)
+            )
 
         if header_probe and row_probes:
             f_bearing = {i for p in row_probes for i in f_find(p)}
-            fixed.header.add(bool(f_bearing) and
-                             all(header_probe in f_chunks[i] for i in f_bearing))
+            fixed.header.add(
+                bool(f_bearing) and all(header_probe in f_chunks[i] for i in f_bearing)
+            )
             c_bearing = {u.id for p in row_probes for u in c_find(p)}
-            cleave.header.add(bool(c_bearing) and
-                              all(header_probe in norm(by_unit_id[uid].content)
-                                  for uid in c_bearing))
+            cleave.header.add(
+                bool(c_bearing)
+                and all(header_probe in norm(by_unit_id[uid].content) for uid in c_bearing)
+            )
 
     # ── heading context (paragraphs with a governing heading) ──
     for e in ingest.elements:
@@ -137,10 +141,14 @@ def score_document(path: str, fixed: ArmScore, cleave: ArmScore) -> None:
         hits = f_find(probe)
         fixed.heading.add(bool(hits) and any(head_probe in f_chunks[i] for i in hits))
         c_hits = c_find(probe)
-        cleave.heading.add(bool(c_hits) and any(
-            head_probe in norm(u.content)
-            or any(head_probe in norm(h) for h in u.context.heading_path)
-            for u in c_hits))
+        cleave.heading.add(
+            bool(c_hits)
+            and any(
+                head_probe in norm(u.content)
+                or any(head_probe in norm(h) for h in u.context.heading_path)
+                for u in c_hits
+            )
+        )
 
     # ── resolved references ──
     for e in ingest.elements:
@@ -162,13 +170,21 @@ def score_document(path: str, fixed: ArmScore, cleave: ArmScore) -> None:
             hits = f_find(probe)
             fixed.refs.add(bool(hits) and any(t_probe in f_chunks[i] for i in hits))
             c_hits = c_find(probe)
-            cleave.refs.add(bool(c_hits) and any(
-                t_probe in norm(u.content)
-                or any((r.type.value if hasattr(r.type, 'value') else str(r.type)) == "references" for r in u.relationships)
-                for u in c_hits))
+            cleave.refs.add(
+                bool(c_hits)
+                and any(
+                    t_probe in norm(u.content)
+                    or any(
+                        (r.type.value if hasattr(r.type, "value") else str(r.type)) == "references"
+                        for r in u.relationships
+                    )
+                    for u in c_hits
+                )
+            )
 
 
 # ───────── Universal Boundary & Retrieval Evaluation Metrics ─────────
+
 
 def boundary_coherence_score(units: list, graph: ContextGraph) -> float:
     """Measure the proportion of unit boundaries that align with valid structural,
@@ -199,8 +215,18 @@ def context_completeness_score(units: list, graph: ContextGraph) -> float:
 
 def relationship_preservation_rate(units: list, graph: ContextGraph) -> float:
     """Calculate the fraction of critical graph edges preserved within units or explicitly linked."""
-    critical_types = {"captions", "captioned_by", "parent", "has_schema", "schema_of", "answered_by", "explains"}
-    critical_edges = [(s, t, d) for s, t, d in graph.g.edges(data=True) if d.get("type") in critical_types]
+    critical_types = {
+        "captions",
+        "captioned_by",
+        "parent",
+        "has_schema",
+        "schema_of",
+        "answered_by",
+        "explains",
+    }
+    critical_edges = [
+        (s, t, d) for s, t, d in graph.g.edges(data=True) if d.get("type") in critical_types
+    ]
     if not critical_edges:
         return 1.0
 
@@ -233,7 +259,12 @@ def fragmentation_rate(units: list, min_viable_tokens: int = 40) -> float:
     """Calculate the proportion of under-sized chunks that represent unnecessary fragmentation."""
     if not units:
         return 0.0
-    under_sized = sum(1 for u in units if u.token_count < min_viable_tokens and u.metadata.get("element_kind") not in ("figure", "caption"))
+    under_sized = sum(
+        1
+        for u in units
+        if u.token_count < min_viable_tokens
+        and u.metadata.get("element_kind") not in ("figure", "caption")
+    )
     return round(under_sized / len(units), 3)
 
 
@@ -244,7 +275,7 @@ def chunk_size_variance(units: list) -> float:
     sizes = [u.token_count for u in units]
     mean = sum(sizes) / len(sizes)
     variance = sum((s - mean) ** 2 for s in sizes) / len(sizes)
-    return round(variance ** 0.5, 2)
+    return round(variance**0.5, 2)
 
 
 def retrieval_evaluation(

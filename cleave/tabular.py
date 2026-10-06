@@ -43,7 +43,7 @@ _NULLISH = {"", "-", "n/a", "na", "null", "none", "nan"}
 @dataclass(slots=True)
 class ColumnProfile:
     name: str
-    dtype: str                       # integer|decimal|percentage|date|boolean|categorical|text
+    dtype: str  # integer|decimal|percentage|date|boolean|categorical|text
     non_null: int = 0
     nulls: int = 0
     distinct: int = 0
@@ -60,8 +60,10 @@ class ColumnProfile:
         head = "".join(bits)
         if self.minimum is not None and self.maximum is not None:
             dp = self.dtype in ("decimal", "percentage")
-            return (f"{head}: {_fmt(self.minimum, dp)} … {_fmt(self.maximum, dp)}, "
-                    f"mean {_fmt(self.mean, dp)}")
+            return (
+                f"{head}: {_fmt(self.minimum, dp)} … {_fmt(self.maximum, dp)}, "
+                f"mean {_fmt(self.mean, dp)}"
+            )
         if self.dtype in ("categorical", "boolean") and self.examples:
             shown = ", ".join(self.examples[:6])
             more = f" (+{self.distinct - len(self.examples[:6])} more)" if self.distinct > 6 else ""
@@ -95,9 +97,13 @@ def profile_column(name: str, values: list[str]) -> ColumnProfile:
     dominant well-formed pattern wins, ties resolve toward the looser type."""
     present = [v.strip() for v in values if v.strip().lower() not in _NULLISH]
     nulls = len(values) - len(present)
-    p = ColumnProfile(name=name or "(unnamed)", dtype="text",
-                      non_null=len(present), nulls=nulls,
-                      distinct=len(set(present)))
+    p = ColumnProfile(
+        name=name or "(unnamed)",
+        dtype="text",
+        non_null=len(present),
+        nulls=nulls,
+        distinct=len(set(present)),
+    )
     if not present:
         p.dtype = "empty"
         return p
@@ -182,28 +188,37 @@ class TableProfile:
             "row_count": self.row_count,
             "column_count": self.column_count,
             "columns": [
-                {"name": c.name, "dtype": c.dtype, "nulls": c.nulls, "distinct": c.distinct,
-                 **({"min": c.minimum, "max": c.maximum, "mean": round(c.mean, 4)}
-                    if c.mean is not None else {})}
+                {
+                    "name": c.name,
+                    "dtype": c.dtype,
+                    "nulls": c.nulls,
+                    "distinct": c.distinct,
+                    **(
+                        {"min": c.minimum, "max": c.maximum, "mean": round(c.mean, 4)}
+                        if c.mean is not None
+                        else {}
+                    ),
+                }
                 for c in self.columns
             ],
         }
 
 
-def profile_table(grid: list[list[str]], header: list[str],
-                  sheet: str | None) -> TableProfile:
+def profile_table(grid: list[list[str]], header: list[str], sheet: str | None) -> TableProfile:
     body = body_rows(grid, header)
     ncols = len(header) if header else (len(grid[0]) if grid else 0)
     cols = []
     for i in range(ncols):
         name = header[i] if i < len(header) else f"column_{i + 1}"
         cols.append(profile_column(name, [r[i] if i < len(r) else "" for r in body]))
-    return TableProfile(sheet=sheet, header=header, row_count=len(body),
-                        column_count=ncols, columns=cols)
+    return TableProfile(
+        sheet=sheet, header=header, row_count=len(body), column_count=ncols, columns=cols
+    )
 
 
-def row_groups(grid: list[list[str]], header: list[str],
-               target_tokens: int = TABULAR_TARGET_TOKENS) -> list[tuple[int, list[list[str]]]]:
+def row_groups(
+    grid: list[list[str]], header: list[str], target_tokens: int = TABULAR_TARGET_TOKENS
+) -> list[tuple[int, list[list[str]]]]:
     """Split body rows into groups that fit the budget. Returns (start_row_index,
     rows) with 1-based row numbers as they appear in the source, so provenance
     can point back at the spreadsheet."""
@@ -223,9 +238,6 @@ def row_groups(grid: list[list[str]], header: list[str],
     if cur:
         groups.append((start, cur))
     return groups
-
-
-
 
 
 def render_group(header: list[str], rows: list[list[str]]) -> str:

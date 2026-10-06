@@ -10,7 +10,6 @@ import json
 import logging
 import mimetypes
 from pathlib import Path
-from typing import Any
 
 from ..config import settings
 from ..http import request_with_retry
@@ -68,7 +67,7 @@ def process_image_file(path: str | Path) -> IngestResult:
     path = Path(path)
     cfg = settings()
     warnings: list[str] = []
-    
+
     if not cfg.gemini_api_key:
         # Graceful fallback when Gemini key is not present
         warnings.append("Gemini API key missing; image processed with basic metadata placeholder.")
@@ -92,13 +91,15 @@ def process_image_file(path: str | Path) -> IngestResult:
         mime = _get_mime_type(path)
 
         body = {
-            "contents": [{
-                "role": "user",
-                "parts": [
-                    {"text": IMAGE_ANALYSIS_PROMPT},
-                    {"inlineData": {"mimeType": mime, "data": b64_data}},
-                ],
-            }],
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [
+                        {"text": IMAGE_ANALYSIS_PROMPT},
+                        {"inlineData": {"mimeType": mime, "data": b64_data}},
+                    ],
+                }
+            ],
             "generationConfig": {
                 "temperature": 0.2,
                 "responseMimeType": "application/json",
@@ -115,39 +116,47 @@ def process_image_file(path: str | Path) -> IngestResult:
         )
         r.raise_for_status()
         data = r.json()
-        raw_text = "".join(p.get("text", "") for p in data["candidates"][0]["content"]["parts"]).strip()
+        raw_text = "".join(
+            p.get("text", "") for p in data["candidates"][0]["content"]["parts"]
+        ).strip()
         parsed = json.loads(raw_text)
 
         elements: list[ContentElement] = []
         raw_elements = parsed.get("elements", [])
-        
+
         if raw_elements:
             for idx, el in enumerate(raw_elements):
-                elements.append(ContentElement(
-                    id=f"img_el_{idx:04d}",
-                    kind=el.get("kind", "figure"),
-                    text=el.get("text", ""),
-                    bbox=tuple(el["bbox"]) if el.get("bbox") and len(el["bbox"]) == 4 else None,
-                    meta={"source": "gemini_vision", "entities": parsed.get("entities", [])},
-                ))
+                elements.append(
+                    ContentElement(
+                        id=f"img_el_{idx:04d}",
+                        kind=el.get("kind", "figure"),
+                        text=el.get("text", ""),
+                        bbox=tuple(el["bbox"]) if el.get("bbox") and len(el["bbox"]) == 4 else None,
+                        meta={"source": "gemini_vision", "entities": parsed.get("entities", [])},
+                    )
+                )
         else:
             # Fallback to general description + OCR
             desc = parsed.get("visual_description", "")
             ocr = parsed.get("ocr_text", "")
             if desc:
-                elements.append(ContentElement(
-                    id="img_el_0000",
-                    kind="figure",
-                    text=desc,
-                    meta={"source": "gemini_vision_description"},
-                ))
+                elements.append(
+                    ContentElement(
+                        id="img_el_0000",
+                        kind="figure",
+                        text=desc,
+                        meta={"source": "gemini_vision_description"},
+                    )
+                )
             if ocr:
-                elements.append(ContentElement(
-                    id="img_el_0001",
-                    kind="caption",
-                    text=ocr,
-                    meta={"source": "gemini_vision_ocr"},
-                ))
+                elements.append(
+                    ContentElement(
+                        id="img_el_0001",
+                        kind="caption",
+                        text=ocr,
+                        meta={"source": "gemini_vision_ocr"},
+                    )
+                )
 
         return IngestResult(
             elements=elements or [ContentElement(id="img_0000", kind="figure", text=path.stem)],
@@ -179,6 +188,7 @@ def process_video_file(path: str | Path) -> IngestResult:
     if not cfg.gemini_api_key:
         warnings.append("Gemini API key missing; falling back to standard video ingestion.")
         from ..ingest_video import ingest_video
+
         return ingest_video(path)
 
     try:
@@ -187,19 +197,22 @@ def process_video_file(path: str | Path) -> IngestResult:
         if len(raw_bytes) > 20 * 1024 * 1024:
             log.info("Video file %s > 20MB; routing to dedicated video pipeline", path.name)
             from ..ingest_video import ingest_video
+
             return ingest_video(path)
 
         b64_data = base64.b64encode(raw_bytes).decode("utf-8")
         mime = _get_mime_type(path)
 
         body = {
-            "contents": [{
-                "role": "user",
-                "parts": [
-                    {"text": VIDEO_ANALYSIS_PROMPT},
-                    {"inlineData": {"mimeType": mime, "data": b64_data}},
-                ],
-            }],
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [
+                        {"text": VIDEO_ANALYSIS_PROMPT},
+                        {"inlineData": {"mimeType": mime, "data": b64_data}},
+                    ],
+                }
+            ],
             "generationConfig": {
                 "temperature": 0.2,
                 "responseMimeType": "application/json",
@@ -216,12 +229,14 @@ def process_video_file(path: str | Path) -> IngestResult:
         )
         r.raise_for_status()
         data = r.json()
-        raw_text = "".join(p.get("text", "") for p in data["candidates"][0]["content"]["parts"]).strip()
+        raw_text = "".join(
+            p.get("text", "") for p in data["candidates"][0]["content"]["parts"]
+        ).strip()
         parsed = json.loads(raw_text)
 
         elements: list[ContentElement] = []
         scenes = parsed.get("scenes", [])
-        
+
         for idx, sc in enumerate(scenes):
             t0 = float(sc.get("t0", 0.0))
             t1 = float(sc.get("t1", t0 + 5.0))
@@ -232,32 +247,38 @@ def process_video_file(path: str | Path) -> IngestResult:
 
             # 1. Speech element if spoken
             if speech:
-                elements.append(ContentElement(
-                    id=f"v_speech_{idx:04d}",
-                    kind="speech_segment",
-                    text=speech,
-                    t0=t0,
-                    t1=t1,
-                    speaker=speaker,
-                    meta={"scene_index": idx, "ocr": ocr},
-                ))
+                elements.append(
+                    ContentElement(
+                        id=f"v_speech_{idx:04d}",
+                        kind="speech_segment",
+                        text=speech,
+                        t0=t0,
+                        t1=t1,
+                        speaker=speaker,
+                        meta={"scene_index": idx, "ocr": ocr},
+                    )
+                )
 
             # 2. Visual scene element
             if visual or ocr:
-                full_visual_text = f"[Scene {idx+1}] {visual}"
+                full_visual_text = f"[Scene {idx + 1}] {visual}"
                 if ocr:
                     full_visual_text += f" | On-screen Text: {ocr}"
-                elements.append(ContentElement(
-                    id=f"v_visual_{idx:04d}",
-                    kind="visual_event",
-                    text=full_visual_text,
-                    t0=t0,
-                    t1=t1,
-                    meta={"scene_index": idx, "entities": sc.get("entities", [])},
-                ))
+                elements.append(
+                    ContentElement(
+                        id=f"v_visual_{idx:04d}",
+                        kind="visual_event",
+                        text=full_visual_text,
+                        t0=t0,
+                        t1=t1,
+                        meta={"scene_index": idx, "entities": sc.get("entities", [])},
+                    )
+                )
 
         if elements:
-            log.info("Gemini multimodal video extracted %d elements from %s", len(elements), path.name)
+            log.info(
+                "Gemini multimodal video extracted %d elements from %s", len(elements), path.name
+            )
             return IngestResult(
                 elements=elements,
                 title=parsed.get("title") or path.stem,
@@ -266,11 +287,14 @@ def process_video_file(path: str | Path) -> IngestResult:
                 warnings=warnings,
             )
     except Exception as exc:
-        log.warning("Gemini multimodal video processing failed (%s); falling back to STT worker", exc)
+        log.warning(
+            "Gemini multimodal video processing failed (%s); falling back to STT worker", exc
+        )
         warnings.append(f"Gemini video analysis failed: {exc}")
 
     # Fallback to standard video ingestion
     from ..ingest_video import ingest_video
+
     res = ingest_video(path)
     res.warnings.extend(warnings)
     return res

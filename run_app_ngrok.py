@@ -1,4 +1,5 @@
 """Start Cleave server and expose it via ngrok."""
+
 import contextlib
 import socket
 import subprocess
@@ -16,14 +17,14 @@ def kill_port(port: int):
     try:
         result = subprocess.run(
             ["netstat", "-ano"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         for line in result.stdout.splitlines():
             if f":{port}" in line and "LISTENING" in line:
                 pid = line.strip().split()[-1]
                 print(f"  Killing PID {pid} on port {port}...")
-                subprocess.run(["taskkill", "/PID", pid, "/F"],
-                               capture_output=True)
+                subprocess.run(["taskkill", "/PID", pid, "/F"], capture_output=True)
     except Exception as e:
         print(f"  Warning: {e}")
 
@@ -40,8 +41,16 @@ def main():
     # 2. Start the FastAPI server in a new window
     print(f"Starting Cleave server on port {port}...")
     server = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "cleave.app:app",
-         "--host", "0.0.0.0", "--port", str(port)],
+        [
+            sys.executable,
+            "-m",
+            "uvicorn",
+            "cleave.app:app",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            str(port),
+        ],
         creationflags=subprocess.CREATE_NEW_CONSOLE,
     )
 
@@ -67,9 +76,9 @@ def main():
 
         print(f"Starting ngrok tunnel to port {port}...")
         tunnel = ngrok.connect(port)
-        print(f"\n{'='*50}")
+        print(f"\n{'=' * 50}")
         print(f"  ngrok public URL: {tunnel.public_url}")
-        print(f"{'='*50}\n")
+        print(f"{'=' * 50}\n")
         input("Press Enter to stop everything...\n")
     except Exception as e:
         print(f"ngrok error: {e}")

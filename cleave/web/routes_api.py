@@ -17,8 +17,9 @@ router = APIRouter()
 
 
 @router.post("/api/jobs")
-async def create_job(background: BackgroundTasks, files: list[UploadFile] = File(...),
-                     use_llm: str = Form("true")):
+async def create_job(
+    background: BackgroundTasks, files: list[UploadFile] = File(...), use_llm: str = Form("true")
+):
     from ..pipeline import run_job  # noqa: PLC0415 — avoids an import cycle
 
     job_id = uuid.uuid4().hex[:10]
@@ -28,8 +29,12 @@ async def create_job(background: BackgroundTasks, files: list[UploadFile] = File
     except Exception:
         uploads.discard(dest_dir)
         raise
-    job = jobs.Job(id=job_id, filename=jobs.display_name(names), filenames=names,
-                   use_llm=use_llm.lower() not in ("false", "0", "off", "no"))
+    job = jobs.Job(
+        id=job_id,
+        filename=jobs.display_name(names),
+        filenames=names,
+        use_llm=use_llm.lower() not in ("false", "0", "off", "no"),
+    )
     jobs.JOBS[job_id] = job
     background.add_task(run_job, job_id, dest_paths)
     return RedirectResponse(f"/jobs/{job_id}", status_code=303)
@@ -93,7 +98,9 @@ def api_export(job_id: str, format: str = "json"):
                     "knowledge_unit_type": u.get("knowledge_unit_type", "generic"),
                     "token_count": u.get("token_count", 0),
                 },
-                "relationships": {r.get("type"): r.get("target_id") for r in u.get("relationships", [])},
+                "relationships": {
+                    r.get("type"): r.get("target_id") for r in u.get("relationships", [])
+                },
             }
             for u in units_data
         ]

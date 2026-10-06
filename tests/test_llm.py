@@ -30,6 +30,7 @@ def _install(monkeypatch, handler):
 
 # ───────── selection ─────────
 
+
 def test_cleave_llm_none_selects_the_none_provider():
     assert llm.get_provider().name == "none"
 
@@ -62,12 +63,16 @@ def test_no_key_is_scavenged_from_other_projects(monkeypatch):
 
 # ───────── the never-raises contract ─────────
 
-@pytest.mark.parametrize("handler", [
-    pytest.param(lambda r: httpx.Response(500), id="server-error"),
-    pytest.param(lambda r: httpx.Response(429), id="rate-limited"),
-    pytest.param(lambda r: httpx.Response(200, text="not json"), id="malformed-body"),
-    pytest.param(lambda r: httpx.Response(200, json={}), id="no-candidates"),
-])
+
+@pytest.mark.parametrize(
+    "handler",
+    [
+        pytest.param(lambda r: httpx.Response(500), id="server-error"),
+        pytest.param(lambda r: httpx.Response(429), id="rate-limited"),
+        pytest.param(lambda r: httpx.Response(200, text="not json"), id="malformed-body"),
+        pytest.param(lambda r: httpx.Response(200, json={}), id="no-candidates"),
+    ],
+)
 def test_gemini_complete_json_never_raises(monkeypatch, handler):
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     monkeypatch.setattr(http.time, "sleep", lambda _s: None)
@@ -92,6 +97,7 @@ def test_ollama_complete_json_never_raises(monkeypatch):
 
 # ───────── credentials travel in a header ─────────
 
+
 def test_gemini_sends_the_key_as_a_header_not_a_query_parameter(monkeypatch):
     """The regression: the key used to ride in ``?key=`` and land in logs."""
     seen: dict = {}
@@ -99,10 +105,13 @@ def test_gemini_sends_the_key_as_a_header_not_a_query_parameter(monkeypatch):
     def handler(request):
         seen["url"] = str(request.url)
         seen["header"] = request.headers.get("x-goog-api-key")
-        return httpx.Response(200, json={
-            "candidates": [{"content": {"parts": [{"text": '{"results":[]}'}]}}],
-            "usageMetadata": {"promptTokenCount": 10, "candidatesTokenCount": 2},
-        })
+        return httpx.Response(
+            200,
+            json={
+                "candidates": [{"content": {"parts": [{"text": '{"results":[]}'}]}}],
+                "usageMetadata": {"promptTokenCount": 10, "candidatesTokenCount": 2},
+            },
+        )
 
     monkeypatch.setenv("GEMINI_API_KEY", "secret-key-value")
     config.reload()
@@ -119,6 +128,7 @@ def test_gemini_sends_the_key_as_a_header_not_a_query_parameter(monkeypatch):
 
 # ───────── the tag probe must not poison itself ─────────
 
+
 def test_a_failed_tag_probe_is_not_cached_for_the_process_lifetime(monkeypatch):
     """The regression: one transient failure disabled Ollama until restart."""
     calls = []
@@ -134,7 +144,7 @@ def test_a_failed_tag_probe_is_not_cached_for_the_process_lifetime(monkeypatch):
     # call re-probes. The old lru_cache would have kept () for good.
     monkeypatch.setattr(llm, "_TAGS_TTL_FAIL", -1.0)
 
-    assert llm.ollama_tags() == ()             # first probe fails
+    assert llm.ollama_tags() == ()  # first probe fails
     assert llm.ollama_tags() == ("qwen3:4b",)  # re-probes rather than staying dead
     assert len(calls) == 2
 
@@ -153,6 +163,7 @@ def test_a_successful_probe_is_cached(monkeypatch):
 
 
 # ───────── UI-facing description ─────────
+
 
 def test_describe_providers_reports_both_without_private_attributes(monkeypatch):
     _install(monkeypatch, lambda r: httpx.Response(200, json={"models": []}))

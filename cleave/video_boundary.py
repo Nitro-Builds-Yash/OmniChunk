@@ -1,4 +1,4 @@
-﻿"""Video-specific boundary logic for the Universal Boundary Decision Engine.
+"""Video-specific boundary logic for the Universal Boundary Decision Engine.
 
 This module encapsulates video boundary scoring so that boundary_engine.py
 stays modality-agnostic and chunkers_multimodal.py stays thin.
@@ -41,6 +41,7 @@ log = logging.getLogger(__name__)
 
 # _________________ Semantic shift detection _________________
 
+
 def _compute_semantic_shifts(elements: list[ContentElement]) -> dict[int, float]:
     """Return a mapping {boundary_index: shift_score} for adjacent speech pairs.
 
@@ -56,7 +57,9 @@ def _compute_semantic_shifts(elements: list[ContentElement]) -> dict[int, float]
     except ImportError:
         return {}
 
-    speech_indices = [i for i, e in enumerate(elements) if e.kind == "speech_segment" and e.text.strip()]
+    speech_indices = [
+        i for i, e in enumerate(elements) if e.kind == "speech_segment" and e.text.strip()
+    ]
     if len(speech_indices) < 2:
         return {}
 
@@ -66,6 +69,7 @@ def _compute_semantic_shifts(elements: list[ContentElement]) -> dict[int, float]
         return {}
 
     import numpy as np  # noqa: PLC0415
+
     vecs = np.asarray(vecs)
     sims = np.sum(vecs[:-1] * vecs[1:], axis=1)  # cosine similarity (normalized)
 
@@ -85,6 +89,7 @@ def _compute_semantic_shifts(elements: list[ContentElement]) -> dict[int, float]
 
 
 # _________________ Video candidate scoring _________________
+
 
 def score_video_candidates(
     elements: list[ContentElement],
@@ -123,7 +128,8 @@ def score_video_candidates(
 
         # Recalculate multimodal_consensus after semantic_shift injection
         independent_signals = sum(
-            1 for s in (
+            1
+            for s in (
                 cand.signals.get("speaker_change"),
                 cand.signals.get("visual_change") or cand.signals.get("scene_change"),
                 cand.signals.get("temporal_gap"),
@@ -131,7 +137,8 @@ def score_video_candidates(
                 cand.signals.get("structural_strength"),
                 cand.signals.get("semantic_shift"),
                 cand.signals.get("pause_strength"),
-            ) if s and s > 0.5
+            )
+            if s and s > 0.5
         )
         if independent_signals >= 2:
             cand.signals["multimodal_consensus"] = min(1.0, 0.4 + independent_signals * 0.2)
@@ -140,6 +147,7 @@ def score_video_candidates(
 
 
 # _________________ Event window selection _________________
+
 
 def select_event_windows(
     elements: list[ContentElement],
@@ -158,6 +166,7 @@ def select_event_windows(
     If no candidates score above threshold the whole stream is returned as one window.
     """
     from .config import settings  # noqa: PLC0415
+
     cfg = settings()
     threshold = cfg.speaker_boundary_threshold
 
@@ -242,6 +251,7 @@ def _window(
     end_cand: BoundaryCandidate | None,
 ) -> dict[str, Any]:
     """Build a window dict with boundary metadata for a contiguous element group."""
+
     def _signals_list(cand: BoundaryCandidate | None) -> list[str]:
         if not cand:
             return []
@@ -266,6 +276,7 @@ def _window(
 
 
 # _________________ Fusion confidence _________________
+
 
 def fusion_confidence(
     speech_segs: list[ContentElement],
@@ -295,14 +306,10 @@ def fusion_confidence(
 
     # Entity overlap (from meta["entities"])
     speech_ents: set[str] = {
-        ent.lower()
-        for s in speech_segs
-        for ent in (s.meta.get("entities") or [])
+        ent.lower() for s in speech_segs for ent in (s.meta.get("entities") or [])
     }
     visual_ents: set[str] = {
-        ent.lower()
-        for v in visual_els
-        for ent in (v.meta.get("entities") or [])
+        ent.lower() for v in visual_els for ent in (v.meta.get("entities") or [])
     }
     union = speech_ents | visual_ents
     entity_score = len(speech_ents & visual_ents) / max(len(union), 1) if union else 0.5
@@ -318,6 +325,7 @@ def fusion_confidence(
 
 
 # _________________ Context propagation _________________
+
 
 def propagate_context(prev_unit: KnowledgeUnit | None) -> str | None:
     """Produce a conservative context hint for the next chunk.

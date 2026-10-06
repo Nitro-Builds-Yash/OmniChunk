@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any
 
 from ..http import client
 from ..models import KnowledgeUnit
@@ -47,7 +46,9 @@ class VectorDB:
         except Exception as exc:
             log.debug("Collection check failed: %s", exc)
 
-    def insert_units(self, units: list[KnowledgeUnit], embeddings: list[list[float]] | None = None) -> int:
+    def insert_units(
+        self, units: list[KnowledgeUnit], embeddings: list[list[float]] | None = None
+    ) -> int:
         """Insert knowledge units with their vectors into the vector store."""
         if not units or not self.is_available():
             return 0
@@ -56,6 +57,7 @@ class VectorDB:
         if embeddings is None:
             try:
                 from sentence_transformers import SentenceTransformer
+
                 model = SentenceTransformer("all-MiniLM-L6-v2")
                 texts = [u.embed_text() for u in units]
                 embs = model.encode(texts, convert_to_numpy=True)
@@ -68,18 +70,22 @@ class VectorDB:
         self._ensure_collection(dim=dim)
 
         points = []
-        for i, (unit, vec) in enumerate(zip(units, embeddings)):
-            points.append({
-                "id": abs(hash(unit.id)) % (2**63),
-                "vector": vec,
-                "payload": {
-                    "unit_id": unit.id,
-                    "content": unit.content,
-                    "modality": unit.modality.value if hasattr(unit.modality, "value") else str(unit.modality),
-                    "token_count": unit.token_count,
-                    "source_uri": unit.provenance.source_uri if unit.provenance else "",
-                },
-            })
+        for _i, (unit, vec) in enumerate(zip(units, embeddings)):
+            points.append(
+                {
+                    "id": abs(hash(unit.id)) % (2**63),
+                    "vector": vec,
+                    "payload": {
+                        "unit_id": unit.id,
+                        "content": unit.content,
+                        "modality": unit.modality.value
+                        if hasattr(unit.modality, "value")
+                        else str(unit.modality),
+                        "token_count": unit.token_count,
+                        "source_uri": unit.provenance.source_uri if unit.provenance else "",
+                    },
+                }
+            )
 
         try:
             r = client().put(

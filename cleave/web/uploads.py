@@ -17,15 +17,15 @@ from fastapi import HTTPException, UploadFile
 
 log = logging.getLogger(__name__)
 
-MAX_UPLOAD = 50 * 1024 * 1024          # per file
-MAX_FILES = 20                         # per job
-MAX_TOTAL_UPLOAD = 200 * 1024 * 1024   # per job, across all files
+MAX_UPLOAD = 50 * 1024 * 1024  # per file
+MAX_FILES = 20  # per job
+MAX_TOTAL_UPLOAD = 200 * 1024 * 1024  # per job, across all files
 
 DOC_EXTS = {".pdf", ".docx", ".pptx", ".xlsx", ".csv", ".html", ".htm", ".md", ".txt"}
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".tiff", ".bmp"}
 AUDIO_EXTS = {".mp3", ".m4a", ".wav", ".aac", ".flac", ".ogg"}
 VIDEO_EXTS = {".mp4", ".mov", ".mkv", ".webm", ".avi"}
-CONTRACT_EXTS = {".json"}     # payloads from external modality workers (CONTRACT.md)
+CONTRACT_EXTS = {".json"}  # payloads from external modality workers (CONTRACT.md)
 ALLOWED_EXTS = DOC_EXTS | IMAGE_EXTS | AUDIO_EXTS | VIDEO_EXTS | CONTRACT_EXTS
 
 
@@ -84,7 +84,8 @@ async def save_uploads(files: list[UploadFile], dest_dir: Path) -> tuple[list[st
                     raise HTTPException(413, f"{fname} exceeds 50MB")
                 if total > MAX_TOTAL_UPLOAD:
                     raise HTTPException(
-                        413, f"upload exceeds {MAX_TOTAL_UPLOAD // (1024 * 1024)}MB in total")
+                        413, f"upload exceeds {MAX_TOTAL_UPLOAD // (1024 * 1024)}MB in total"
+                    )
                 out.write(chunk_bytes)
         names.append(dest.name)
         paths.append(dest)

@@ -25,15 +25,15 @@ DATA = ROOT / "data" / "jobs"
 @dataclass(slots=True)
 class Job:
     id: str
-    filename: str                      # display summary, e.g. "3 files (a.pdf, b.mp3, …)"
+    filename: str  # display summary, e.g. "3 files (a.pdf, b.mp3, …)"
     filenames: list[str] = field(default_factory=list)
-    status: str = "queued"            # queued | running | done | error
+    status: str = "queued"  # queued | running | done | error
     progress: int = 0
     message: str = "queued"
     error: str | None = None
     created: float = field(default_factory=time.time)
     elapsed_s: float = 0.0
-    use_llm: bool = True               # per-job override for LLM enrichment
+    use_llm: bool = True  # per-job override for LLM enrichment
 
     @property
     def is_terminal(self) -> bool:
@@ -109,7 +109,9 @@ def rehydrate_jobs() -> None:
             id=job_id,
             filename=display_name(names) if names else (meta.get("title") or job_id),
             filenames=names,
-            status="done", progress=100, message="done",
+            status="done",
+            progress=100,
+            message="done",
             created=profile.stat().st_mtime,
             elapsed_s=meta.get("totals", {}).get("wall_clock_s", 0.0),
         )

@@ -41,7 +41,9 @@ EDGE_IMPORTANCE: dict[str, float] = {
 }
 
 _QA_PATTERNS = [
-    re.compile(r"^(who|what|where|when|why|how|can|could|would|should|is|are|do|does|did)\b.*\?", re.I),
+    re.compile(
+        r"^(who|what|where|when|why|how|can|could|would|should|is|are|do|does|did)\b.*\?", re.I
+    ),
 ]
 
 
@@ -65,10 +67,19 @@ class ContextGraph:
         self._multimodal_edges()
         self._reading_order()
 
-    def _add(self, src: str, dst: str, type_: str, confidence: float, evidence: str,
-             importance: float | None = None) -> None:
+    def _add(
+        self,
+        src: str,
+        dst: str,
+        type_: str,
+        confidence: float,
+        evidence: str,
+        importance: float | None = None,
+    ) -> None:
         imp = importance if importance is not None else EDGE_IMPORTANCE.get(type_, 0.5)
-        self.g.add_edge(src, dst, type=type_, confidence=confidence, evidence=evidence, importance=imp)
+        self.g.add_edge(
+            src, dst, type=type_, confidence=confidence, evidence=evidence, importance=imp
+        )
 
     def _hierarchy(self) -> None:
         for e in self.elements:
@@ -84,8 +95,12 @@ class ContextGraph:
                 continue
             for cid in e.meta.get("caption_ids", []):
                 if cid in self.by_id:
-                    self._add(cid, e.id, "captions", 1.0, "Docling caption reference", importance=1.0)
-                    self._add(e.id, cid, "captioned_by", 1.0, "Docling caption reference", importance=1.0)
+                    self._add(
+                        cid, e.id, "captions", 1.0, "Docling caption reference", importance=1.0
+                    )
+                    self._add(
+                        e.id, cid, "captioned_by", 1.0, "Docling caption reference", importance=1.0
+                    )
                     claimed.add(cid)
         # pass 2: bbox adjacency for floats Docling left uncaptioned
         for e in self.elements:
@@ -96,8 +111,11 @@ class ContextGraph:
                 if c.id in claimed or c.page != e.page or not (c.bbox and e.bbox):
                     continue
                 gap = _vertical_gap(e.bbox, c.bbox)
-                if (gap <= _CAPTION_GAP_PT and _h_overlap(e.bbox, c.bbox) > 0
-                        and (best is None or gap < best[0])):
+                if (
+                    gap <= _CAPTION_GAP_PT
+                    and _h_overlap(e.bbox, c.bbox) > 0
+                    and (best is None or gap < best[0])
+                ):
                     best = (gap, c)
             if best:
                 gap, c = best
@@ -144,8 +162,14 @@ class ContextGraph:
             for m in _REF_RE.finditer(e.text):
                 target = resolve(m.group(1), int(m.group(2)))
                 if target and target.id != e.id and not self.g.has_edge(e.id, target.id):
-                    self._add(e.id, target.id, "references", 0.9,
-                              f"text mentions {m.group(0)!r}", importance=0.75)
+                    self._add(
+                        e.id,
+                        target.id,
+                        "references",
+                        0.9,
+                        f"text mentions {m.group(0)!r}",
+                        importance=0.75,
+                    )
 
     def _explains_and_illustrates(self) -> None:
         """Detect prose directly preceding or explaining a table/figure."""
@@ -157,23 +181,46 @@ class ContextGraph:
                     and len(prev.text) > 20
                     and not self.g.has_edge(prev.id, e.id)
                 ):
-                    self._add(prev.id, e.id, "explains", 0.85,
-                              f"prose introduces adjacent {e.kind}", importance=0.85)
-                    self._add(e.id, prev.id, "illustrated_by", 0.85,
-                              f"{e.kind} illustrated by preceding prose", importance=0.85)
+                    self._add(
+                        prev.id,
+                        e.id,
+                        "explains",
+                        0.85,
+                        f"prose introduces adjacent {e.kind}",
+                        importance=0.85,
+                    )
+                    self._add(
+                        e.id,
+                        prev.id,
+                        "illustrated_by",
+                        0.85,
+                        f"{e.kind} illustrated by preceding prose",
+                        importance=0.85,
+                    )
 
     def _conversational_edges(self) -> None:
         """Detect question-answer and dialogue dependencies in speech or prose."""
         for i in range(len(self.elements) - 1):
             a, b = self.elements[i], self.elements[i + 1]
             if (
-                (a.text.strip().endswith("?") or any(rx.search(a.text) for rx in _QA_PATTERNS))
-                and b.kind in ("speech_segment", "paragraph")
-            ):
-                self._add(a.id, b.id, "answered_by", 0.90,
-                          "question answered by following element", importance=0.90)
-                self._add(b.id, a.id, "question_for", 0.90,
-                          "answer directly addresses question", importance=0.90)
+                a.text.strip().endswith("?") or any(rx.search(a.text) for rx in _QA_PATTERNS)
+            ) and b.kind in ("speech_segment", "paragraph"):
+                self._add(
+                    a.id,
+                    b.id,
+                    "answered_by",
+                    0.90,
+                    "question answered by following element",
+                    importance=0.90,
+                )
+                self._add(
+                    b.id,
+                    a.id,
+                    "question_for",
+                    0.90,
+                    "answer directly addresses question",
+                    importance=0.90,
+                )
 
     def _multimodal_edges(self) -> None:
         """Detect temporal overlap and visual co-occurrence in video/audio."""
@@ -189,9 +236,14 @@ class ContextGraph:
                 # Check for temporal overlap
                 overlap = min(s.t1, v.t1) - max(s.t0, v.t0)
                 if overlap > 0:
-                    self._add(s.id, v.id, "occurs_during", 0.85,
-                              f"speech span ({s.t0:.1f}s–{s.t1:.1f}s) overlaps visual event ({v.t0:.1f}s–{v.t1:.1f}s)",
-                              importance=0.80)
+                    self._add(
+                        s.id,
+                        v.id,
+                        "occurs_during",
+                        0.85,
+                        f"speech span ({s.t0:.1f}s–{s.t1:.1f}s) overlaps visual event ({v.t0:.1f}s–{v.t1:.1f}s)",
+                        importance=0.80,
+                    )
 
     def _reading_order(self) -> None:
         for a, b in zip(self.elements, self.elements[1:]):
@@ -214,8 +266,9 @@ class ContextGraph:
         return list(reversed(path))
 
     def captions_of(self, float_id: str) -> list[str]:
-        return [src for src, _, d in self.g.in_edges(float_id, data=True)
-                if d["type"] == "captions"]
+        return [
+            src for src, _, d in self.g.in_edges(float_id, data=True) if d["type"] == "captions"
+        ]
 
     def surrounding_text(self, el_id: str, max_chars: int = 320) -> tuple[str | None, str | None]:
         """Nearest prose before and after an element."""
@@ -231,18 +284,22 @@ class ContextGraph:
                 if e.kind in prose and len(e.text) > 40:
                     return e.text[:max_chars]
                 if e.kind == "heading":
-                    break          # a heading is a hard context boundary
+                    break  # a heading is a hard context boundary
             return None
 
         return scan(range(idx - 1, -1, -1)), scan(range(idx + 1, len(self.elements)))
 
     def references_to(self, el_id: str) -> list[tuple[str, dict[str, Any]]]:
-        return [(src, d) for src, _, d in self.g.in_edges(el_id, data=True)
-                if d["type"] == "references"]
+        return [
+            (src, d) for src, _, d in self.g.in_edges(el_id, data=True) if d["type"] == "references"
+        ]
 
     def references_from(self, el_id: str) -> list[tuple[str, dict[str, Any]]]:
-        return [(dst, d) for _, dst, d in self.g.out_edges(el_id, data=True)
-                if d["type"] == "references"]
+        return [
+            (dst, d)
+            for _, dst, d in self.g.out_edges(el_id, data=True)
+            if d["type"] == "references"
+        ]
 
     def relationship_loss(self, left_ids: set[str], right_ids: set[str]) -> tuple[float, list[str]]:
         """Calculate the penalty and severed reasons when cutting between left_ids and right_ids.
@@ -271,7 +328,9 @@ class ContextGraph:
             return 1.0
         # If directly connected by non-next edge, separation is very low
         if any(self.g.has_edge(el_a_id, el_b_id) or self.g.has_edge(el_b_id, el_a_id) for _ in [1]):
-            direct_d = self.g.get_edge_data(el_a_id, el_b_id) or self.g.get_edge_data(el_b_id, el_a_id)
+            direct_d = self.g.get_edge_data(el_a_id, el_b_id) or self.g.get_edge_data(
+                el_b_id, el_a_id
+            )
             if direct_d and direct_d.get("type") not in ("next", "previous"):
                 return 0.1
         # Check heading ancestry separation
@@ -284,21 +343,31 @@ class ContextGraph:
     def to_dict(self) -> dict[str, Any]:
         return {
             "nodes": [
-                {"id": e.id, "kind": e.kind, "page": e.page,
-                 "text": e.text[:120] + ("…" if len(e.text) > 120 else "")}
+                {
+                    "id": e.id,
+                    "kind": e.kind,
+                    "page": e.page,
+                    "text": e.text[:120] + ("…" if len(e.text) > 120 else ""),
+                }
                 for e in self.elements
             ],
             "edges": [
-                {"source": s, "target": t, "type": d["type"],
-                 "confidence": round(d["confidence"], 3), "evidence": d["evidence"],
-                 "importance": round(d.get("importance", 0.5), 2)}
+                {
+                    "source": s,
+                    "target": t,
+                    "type": d["type"],
+                    "confidence": round(d["confidence"], 3),
+                    "evidence": d["evidence"],
+                    "importance": round(d.get("importance", 0.5), 2),
+                }
                 for s, t, d in self.g.edges(data=True)
             ],
         }
 
 
-def _vertical_gap(a: tuple[float, float, float, float],
-                  b: tuple[float, float, float, float]) -> float:
+def _vertical_gap(
+    a: tuple[float, float, float, float], b: tuple[float, float, float, float]
+) -> float:
     """Min vertical distance between two boxes, robust to bbox origin
     (Docling PDF boxes are bottom-left origin, so t > b)."""
     a_lo, a_hi = min(a[1], a[3]), max(a[1], a[3])
@@ -310,6 +379,5 @@ def _vertical_gap(a: tuple[float, float, float, float],
     return 0.0
 
 
-def _h_overlap(a: tuple[float, float, float, float],
-               b: tuple[float, float, float, float]) -> float:
+def _h_overlap(a: tuple[float, float, float, float], b: tuple[float, float, float, float]) -> float:
     return max(0.0, min(a[2], b[2]) - max(a[0], b[0]))

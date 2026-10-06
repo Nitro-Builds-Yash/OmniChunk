@@ -15,7 +15,11 @@ from cleave.models import ContentElement, _encoder
 def _ingest(text: str) -> IngestResult:
     return IngestResult(
         elements=[ContentElement(id="el_0000", kind="paragraph", text=text)],
-        title="t", source_uri="t", sha256=None, warnings=[], cleaning=None,
+        title="t",
+        source_uri="t",
+        sha256=None,
+        warnings=[],
+        cleaning=None,
     )
 
 
@@ -29,7 +33,7 @@ def test_the_baseline_splitter_overlaps_and_drops_nothing():
     # Every token appears somewhere, and consecutive chunks share the overlap.
     assert enc.decode(ids[:FIXED_TOKENS]) == chunks[0]
     second_start = FIXED_TOKENS - FIXED_OVERLAP
-    assert enc.decode(ids[second_start:second_start + FIXED_TOKENS]) == chunks[1]
+    assert enc.decode(ids[second_start : second_start + FIXED_TOKENS]) == chunks[1]
 
 
 def test_a_short_document_is_one_baseline_chunk():
@@ -44,13 +48,17 @@ def test_unmeasured_metrics_do_not_drag_the_score_down():
     """A metric with nothing to measure must be excluded, not counted as zero."""
     score = ArmScore()
     score.caption.add(True)
-    score.caption.add(True)          # 2/2 measured; the other three are empty
+    score.caption.add(True)  # 2/2 measured; the other three are empty
 
     out = score.to_dict()
 
     assert out["cps_pct"] == 100.0
     assert {m["name"] for m in out["metrics"]} == {
-        "caption integrity", "header integrity", "heading context", "resolved references"}
+        "caption integrity",
+        "header integrity",
+        "heading context",
+        "resolved references",
+    }
 
 
 def test_a_score_with_nothing_measured_is_none():

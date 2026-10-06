@@ -35,7 +35,7 @@ class Price:
 
     inp: float
     out: float
-    cached_inp: float = 0.0     # cache hits bill at a discount; 0.0 = same as inp
+    cached_inp: float = 0.0  # cache hits bill at a discount; 0.0 = same as inp
 
     def cost(self, in_tokens: int, out_tokens: int, cached_tokens: int = 0) -> float:
         fresh = max(0, in_tokens - cached_tokens)
@@ -47,11 +47,11 @@ class Price:
 #: Anything not listed is billed at the DEFAULT rate and flagged in the ledger,
 #: so an unpriced model shows up as an estimate rather than silently as $0.
 PRICING: dict[str, Price] = {
-    "gemini-2.5-flash":      Price(0.30, 2.50, 0.075),
+    "gemini-2.5-flash": Price(0.30, 2.50, 0.075),
     "gemini-2.5-flash-lite": Price(0.10, 0.40, 0.025),
-    "gemini-3.7-flash":      Price(0.375, 1.875, 0.09),
-    "gemini-3.6-flash":      Price(0.75, 3.75, 0.1875),
-    "gemini-2.0-flash":      Price(0.10, 0.40, 0.025),
+    "gemini-3.7-flash": Price(0.375, 1.875, 0.09),
+    "gemini-3.6-flash": Price(0.75, 3.75, 0.1875),
+    "gemini-2.0-flash": Price(0.10, 0.40, 0.025),
 }
 DEFAULT_PRICE = Price(0.30, 2.50, 0.075)
 
@@ -79,7 +79,7 @@ class ModelUsage:
     cached_tokens: int = 0
     cost_usd: float = 0.0
     failures: int = 0
-    estimated: bool = False      # priced with the fallback rate, not a published one
+    estimated: bool = False  # priced with the fallback rate, not a published one
 
     @property
     def local(self) -> bool:
@@ -89,8 +89,9 @@ class ModelUsage:
         d = asdict(self)
         d["cost_usd"] = round(self.cost_usd, 6)
         d["local"] = self.local
-        d["cache_hit_pct"] = (round(100 * self.cached_tokens / self.in_tokens, 1)
-                              if self.in_tokens else 0.0)
+        d["cache_hit_pct"] = (
+            round(100 * self.cached_tokens / self.in_tokens, 1) if self.in_tokens else 0.0
+        )
         return d
 
 
@@ -101,8 +102,7 @@ class Ledger:
     models: dict[str, ModelUsage] = field(default_factory=dict)
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
-    def record(self, model: str, in_tokens: int, out_tokens: int,
-               cached_tokens: int = 0) -> float:
+    def record(self, model: str, in_tokens: int, out_tokens: int, cached_tokens: int = 0) -> float:
         price, known = price_for(model)
         cost = price.cost(in_tokens, out_tokens, cached_tokens)
         with self._lock:
@@ -156,8 +156,9 @@ class Ledger:
         for row in other.get("by_model", []):
             with self._lock:
                 u = self.models.setdefault(
-                    row["model"], ModelUsage(model=row["model"],
-                                             estimated=row.get("estimated", False)))
+                    row["model"],
+                    ModelUsage(model=row["model"], estimated=row.get("estimated", False)),
+                )
                 u.calls += row.get("calls", 0)
                 u.in_tokens += row.get("in_tokens", 0)
                 u.out_tokens += row.get("out_tokens", 0)

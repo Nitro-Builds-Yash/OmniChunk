@@ -66,10 +66,12 @@ def test_chunk_multimodal_stream_aligns_speech_and_visuals():
     def base_provenance(el):
         return Provenance(source_uri="meeting.mp4")
 
-    units = chunk_multimodal_stream(elements, graph, new_unit_id, base_provenance, title="Meeting Recording")
-    
+    units = chunk_multimodal_stream(
+        elements, graph, new_unit_id, base_provenance, title="Meeting Recording"
+    )
+
     assert len(units) == 2
-    
+
     # First unit covers Slide 1 and Alice's dialogue
     u1, members1 = units[0]
     # New universal boundary chunker emits VIDEO_EVENT for multimodal windows
@@ -86,7 +88,7 @@ def test_chunk_multimodal_stream_aligns_speech_and_visuals():
     assert len(members1) == 3
 
     # Second unit covers Slide 2 and Bob's dialogue
-    u2, members2 = units[1]
+    u2, _members2 = units[1]
     assert u2.temporal.start_s == 15.0
     assert u2.temporal.end_s == 30.0
     assert "Bob" in (u2.temporal.speaker or "")

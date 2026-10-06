@@ -19,8 +19,18 @@ from .models import ContentElement, count_tokens, sha256_of
 log = logging.getLogger(__name__)
 
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".tiff", ".bmp"}
-_DOC_EXTS = {".pdf", ".docx", ".pptx", ".xlsx", ".csv", ".html", ".htm", ".md", ".txt",
-             ".asciidoc"} | _IMAGE_EXTS
+_DOC_EXTS = {
+    ".pdf",
+    ".docx",
+    ".pptx",
+    ".xlsx",
+    ".csv",
+    ".html",
+    ".htm",
+    ".md",
+    ".txt",
+    ".asciidoc",
+} | _IMAGE_EXTS
 _SPREADSHEET_EXTS = {".xlsx", ".csv"}
 
 
@@ -31,7 +41,7 @@ class IngestResult:
     source_uri: str
     sha256: str
     warnings: list[str] = field(default_factory=list)
-    cleaning: dict | None = None      # what normalisation changed, by rule
+    cleaning: dict | None = None  # what normalisation changed, by rule
 
 
 _converter = None
@@ -105,8 +115,6 @@ def _header_row(table) -> list[str]:
     return grid[0] if grid else []
 
 
-
-
 def ingest_document(path: str | Path) -> IngestResult:
     path = Path(path)
     if path.suffix.lower() not in _DOC_EXTS:
@@ -117,7 +125,7 @@ def ingest_document(path: str | Path) -> IngestResult:
     warnings: list[str] = []
 
     elements: list[ContentElement] = []
-    by_selfref: dict[str, str] = {}          # docling "#/texts/3" → our element id
+    by_selfref: dict[str, str] = {}  # docling "#/texts/3" → our element id
     heading_stack: list[tuple[int, str, str | None]] = []  # (level, id, section number)
     title: str | None = None
     counter = 0
@@ -147,8 +155,12 @@ def ingest_document(path: str | Path) -> IngestResult:
             grid = _grid_texts(item)
             eid = new_id()
             el = ContentElement(
-                id=eid, kind="table", text=_table_markdown(grid),
-                parent_id=current_parent(), page=page, bbox=bbox,
+                id=eid,
+                kind="table",
+                text=_table_markdown(grid),
+                parent_id=current_parent(),
+                page=page,
+                bbox=bbox,
                 meta={
                     "grid": grid,
                     "header_row": _header_row(item),
@@ -162,8 +174,12 @@ def ingest_document(path: str | Path) -> IngestResult:
         if isinstance(item, PictureItem):
             eid = new_id()
             el = ContentElement(
-                id=eid, kind="figure", text="",
-                parent_id=current_parent(), page=page, bbox=bbox,
+                id=eid,
+                kind="figure",
+                text="",
+                parent_id=current_parent(),
+                page=page,
+                bbox=bbox,
                 meta={"caption_crefs": [getattr(c, "cref", str(c)) for c in item.captions]},
             )
             elements.append(el)
@@ -181,10 +197,17 @@ def ingest_document(path: str | Path) -> IngestResult:
             title = title or text
             eid = new_id()
             heading_stack.clear()
-            elements.append(ContentElement(
-                id=eid, kind="heading", text=text, level=1,
-                parent_id=None, page=page, bbox=bbox,
-            ))
+            elements.append(
+                ContentElement(
+                    id=eid,
+                    kind="heading",
+                    text=text,
+                    level=1,
+                    parent_id=None,
+                    page=page,
+                    bbox=bbox,
+                )
+            )
             heading_stack.append((1, eid, None))
             by_selfref[item.self_ref] = eid
         elif label == DocItemLabel.SECTION_HEADER:
@@ -195,11 +218,10 @@ def ingest_document(path: str | Path) -> IngestResult:
                 # its prefix — "3.2.1" under "3.2" — regardless of anything
                 # detected in between.
                 while heading_stack and not (
-                    heading_stack[-1][2]
-                    and number.startswith(heading_stack[-1][2] + ".")
+                    heading_stack[-1][2] and number.startswith(heading_stack[-1][2] + ".")
                 ):
                     heading_stack.pop()
-                lvl = number.count(".") + 2      # level 1 is the document title
+                lvl = number.count(".") + 2  # level 1 is the document title
                 push = True
             else:
                 # Unnumbered headings are siblings of each other, so drop any
@@ -211,10 +233,17 @@ def ingest_document(path: str | Path) -> IngestResult:
                     heading_stack.pop()
                 lvl = (heading_stack[-1][0] + 1) if heading_stack else 2
                 push = not heading_stack
-            elements.append(ContentElement(
-                id=eid, kind="heading", text=text, level=lvl,
-                parent_id=current_parent(), page=page, bbox=bbox,
-            ))
+            elements.append(
+                ContentElement(
+                    id=eid,
+                    kind="heading",
+                    text=text,
+                    level=lvl,
+                    parent_id=current_parent(),
+                    page=page,
+                    bbox=bbox,
+                )
+            )
             if push:
                 heading_stack.append((lvl, eid, number))
             by_selfref[item.self_ref] = eid
@@ -225,10 +254,16 @@ def ingest_document(path: str | Path) -> IngestResult:
                 DocItemLabel.CAPTION: "caption",
             }.get(label, "paragraph")
             eid = new_id()
-            elements.append(ContentElement(
-                id=eid, kind=kind, text=text,
-                parent_id=current_parent(), page=page, bbox=bbox,
-            ))
+            elements.append(
+                ContentElement(
+                    id=eid,
+                    kind=kind,
+                    text=text,
+                    parent_id=current_parent(),
+                    page=page,
+                    bbox=bbox,
+                )
+            )
             by_selfref[item.self_ref] = eid
 
     # Resolve caption crefs → element ids; synthesize a caption element when the
@@ -259,17 +294,23 @@ def ingest_document(path: str | Path) -> IngestResult:
     report = clean_elements(elements)
     elements = [e for e in elements if e.text or e.kind in ("figure", "table")]
     if not elements and path.suffix.lower() in _IMAGE_EXTS:
-        elements.append(ContentElement(
-            id="el_0000", kind="figure", text=f"[{path.name} visual diagram / image]",
-            page=1, meta={"is_image": True},
-        ))
+        elements.append(
+            ContentElement(
+                id="el_0000",
+                kind="figure",
+                text=f"[{path.name} visual diagram / image]",
+                page=1,
+                meta={"is_image": True},
+            )
+        )
     if title:
         title = clean_text_value(title)
 
     if not elements:
         warnings.append("document produced no elements")
-    log.info("ingested %s: %d elements, title=%r — %s",
-             path.name, len(elements), title, report.summary())
+    log.info(
+        "ingested %s: %d elements, title=%r — %s", path.name, len(elements), title, report.summary()
+    )
 
     return IngestResult(
         elements=elements,
@@ -287,8 +328,7 @@ def clean_text_value(text: str) -> str:
     return clean_text(text)[0]
 
 
-def _label_sheets(path: Path, elements: list[ContentElement],
-                  warnings: list[str]) -> None:
+def _label_sheets(path: Path, elements: list[ContentElement], warnings: list[str]) -> None:
     """Recover sheet identity, which Docling drops.
 
     A row group is meaningless without knowing which sheet it came from, but
@@ -312,7 +352,7 @@ def _label_sheets(path: Path, elements: list[ContentElement],
         if names and el.page and 1 <= el.page <= len(names):
             el.meta["sheet"] = names[el.page - 1]
         elif path.suffix.lower() == ".csv":
-            el.meta["sheet"] = None      # a CSV is a single unnamed table
+            el.meta["sheet"] = None  # a CSV is a single unnamed table
     if names:
         log.info("labelled %d sheet(s) in %s: %s", len(names), path.name, names)
 

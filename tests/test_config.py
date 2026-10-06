@@ -61,7 +61,7 @@ def test_settings_are_cached_until_reloaded(monkeypatch):
     first = config.settings()
     assert config.settings() is first
     monkeypatch.setenv("CLEAVE_ENRICH_BATCH", "3")
-    assert config.settings() is first          # still cached
+    assert config.settings() is first  # still cached
     config.reload()
     assert config.settings().enrich_batch == 3
 
@@ -80,8 +80,8 @@ def test_a_real_environment_variable_beats_the_dotenv_file(monkeypatch, tmp_path
 
     cfg = config.settings()
 
-    assert cfg.llm == "none"                    # the real variable wins
-    assert cfg.gemini_model == "from-dotenv"    # the file still supplies what is unset
+    assert cfg.llm == "none"  # the real variable wins
+    assert cfg.gemini_model == "from-dotenv"  # the file still supplies what is unset
 
 
 def test_the_dotenv_file_is_read_when_the_variable_is_unset(monkeypatch, tmp_path):

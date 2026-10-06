@@ -28,8 +28,13 @@ log = logging.getLogger(__name__)
 #: Small instruct models that follow a JSON schema reliably, best first. The
 #: first one already pulled locally is used.
 OLLAMA_PREFERRED = (
-    "granite4.2:8b", "qwen3.5:4b", "llama3.2:3b", "qwen2.5:7b",
-    "gemma3:4b", "phi4-mini", "mistral:7b",
+    "granite4.2:8b",
+    "qwen3.5:4b",
+    "llama3.2:3b",
+    "qwen2.5:7b",
+    "gemma3:4b",
+    "phi4-mini",
+    "mistral:7b",
 )
 
 
@@ -66,8 +71,9 @@ def ollama_tags() -> tuple[str, ...]:
             _tags_state = (now + _TAGS_TTL_OK, tags)
             return tags
         except Exception as exc:
-            log.info("ollama not reachable at %s (%s) — re-probing in %.0fs",
-                     url, exc, _TAGS_TTL_FAIL)
+            log.info(
+                "ollama not reachable at %s (%s) — re-probing in %.0fs", url, exc, _TAGS_TTL_FAIL
+            )
             _tags_state = (now + _TAGS_TTL_FAIL, ())
             return ()
 
@@ -93,8 +99,9 @@ class LLMProvider(Protocol):
 
     def is_configured(self) -> bool: ...
 
-    def complete_json(self, prompt: str, *, system: str | None = None,
-                      schema: dict | None = None) -> tuple[str, dict]:
+    def complete_json(
+        self, prompt: str, *, system: str | None = None, schema: dict | None = None
+    ) -> tuple[str, dict]:
         """→ (text, usage). ``text == ""`` means failure.
 
         usage: {model, in_tokens, out_tokens, cached_tokens}.
@@ -128,9 +135,8 @@ class OllamaProvider:
         if not tags:
             return False
         if self._model:
-            return any(t == self._model or t.startswith(self._model.split(":")[0])
-                       for t in tags)
-        for want in OLLAMA_PREFERRED:          # pick the best model already pulled
+            return any(t == self._model or t.startswith(self._model.split(":")[0]) for t in tags)
+        for want in OLLAMA_PREFERRED:  # pick the best model already pulled
             for have in tags:
                 if have == want or have.startswith(want.split(":")[0] + ":"):
                     self._model = have
@@ -141,8 +147,9 @@ class OllamaProvider:
     def _tags(self) -> tuple[str, ...]:
         return ollama_tags()
 
-    def complete_json(self, prompt: str, *, system: str | None = None,
-                      schema: dict | None = None) -> tuple[str, dict]:
+    def complete_json(
+        self, prompt: str, *, system: str | None = None, schema: dict | None = None
+    ) -> tuple[str, dict]:
         if not self._model:
             return "", {}
         body: dict = {
@@ -164,7 +171,9 @@ class OllamaProvider:
         try:
             cfg = settings()
             r = request_with_retry(
-                "POST", f"{cfg.ollama_url}/api/generate", json=body,
+                "POST",
+                f"{cfg.ollama_url}/api/generate",
+                json=body,
                 timeout=cfg.llm_timeout_s,
                 # A local model that fails twice is down, not busy; a third
                 # attempt just costs another full timeout.
@@ -202,8 +211,9 @@ class GeminiProvider:
     def is_configured(self) -> bool:
         return bool(self.key)
 
-    def complete_json(self, prompt: str, *, system: str | None = None,
-                      schema: dict | None = None) -> tuple[str, dict]:
+    def complete_json(
+        self, prompt: str, *, system: str | None = None, schema: dict | None = None
+    ) -> tuple[str, dict]:
         if not self.is_configured():
             return "", {}
         gen: dict = {"temperature": 0.2}
@@ -230,8 +240,9 @@ class GeminiProvider:
             )
             r.raise_for_status()
             data = r.json()
-            text = "".join(p.get("text", "")
-                           for p in data["candidates"][0]["content"]["parts"]).strip()
+            text = "".join(
+                p.get("text", "") for p in data["candidates"][0]["content"]["parts"]
+            ).strip()
             um = data.get("usageMetadata", {})
             return text, {
                 "model": self._model,
@@ -252,8 +263,9 @@ class NoneProvider:
     def is_configured(self) -> bool:
         return True
 
-    def complete_json(self, prompt: str, *, system: str | None = None,
-                      schema: dict | None = None) -> tuple[str, dict]:
+    def complete_json(
+        self, prompt: str, *, system: str | None = None, schema: dict | None = None
+    ) -> tuple[str, dict]:
         return "", {}
 
 
@@ -290,8 +302,20 @@ def describe_providers() -> list[dict]:
     o_ok, g_ok = o.is_configured(), g.is_configured()
     active = get_provider()
     return [
-        {"name": "ollama", "label": "Local (Ollama)", "model": o.local_model or "—",
-         "available": o_ok, "cost": "free", "active": active.name == "ollama"},
-        {"name": "gemini", "label": "Gemini API", "model": g.model if g_ok else "—",
-         "available": g_ok, "cost": "paid", "active": active.name == "gemini"},
+        {
+            "name": "ollama",
+            "label": "Local (Ollama)",
+            "model": o.local_model or "—",
+            "available": o_ok,
+            "cost": "free",
+            "active": active.name == "ollama",
+        },
+        {
+            "name": "gemini",
+            "label": "Gemini API",
+            "model": g.model if g_ok else "—",
+            "available": g_ok,
+            "cost": "paid",
+            "active": active.name == "gemini",
+        },
     ]

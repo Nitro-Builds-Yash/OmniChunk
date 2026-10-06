@@ -21,9 +21,17 @@ router = APIRouter()
 #: older build can be missing any of these, and the template formats several of
 #: them numerically ("%.4f" on cost), so a bare ``{}`` still raises.
 _TOTALS_DEFAULTS = {
-    "units": 0, "tier0_pct": 0, "flagged_for_enrichment": 0, "enriched": 0,
-    "llm_calls": 0, "cost_usd": 0.0, "in_tokens": 0, "out_tokens": 0,
-    "wall_clock_s": 0.0, "warnings": [], "use_llm": False,
+    "units": 0,
+    "tier0_pct": 0,
+    "flagged_for_enrichment": 0,
+    "enriched": 0,
+    "llm_calls": 0,
+    "cost_usd": 0.0,
+    "in_tokens": 0,
+    "out_tokens": 0,
+    "wall_clock_s": 0.0,
+    "warnings": [],
+    "use_llm": False,
 }
 
 
@@ -41,10 +49,16 @@ def index(request: Request):
             # A malformed scorecard used to take the homepage down with it.
             log.warning("scorecard unreadable (%s) — rendering without it", exc)
     jobs = sorted(JOBS.values(), key=lambda j: j.created, reverse=True)
-    return templates.TemplateResponse(request, "index.html", {
-        "jobs": jobs, "scorecard": scorecard,
-        "usage": read_cumulative(), "providers": describe_providers(),
-    })
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {
+            "jobs": jobs,
+            "scorecard": scorecard,
+            "usage": read_cumulative(),
+            "providers": describe_providers(),
+        },
+    )
 
 
 @router.get("/jobs/{job_id}", response_class=HTMLResponse)
@@ -69,13 +83,22 @@ def job_results(request: Request, job_id: str):
         raise HTTPException(404, "results are unreadable") from exc
     graph_path = job.dir / "graph.json"
     graph = json.loads(graph_path.read_text()) if graph_path.exists() else None
-    return templates.TemplateResponse(request, "_results.html", {
-        "job": job, "units": units, "profile": meta.get("profile"),
-        "totals": {**_TOTALS_DEFAULTS, **meta.get("totals", {})},
-        "title": meta.get("title"), "graph": graph,
-        "usage": meta.get("usage"), "enrichment": meta.get("enrichment"),
-        "cleaning": meta.get("cleaning"), "files": meta.get("files"),
-    })
+    return templates.TemplateResponse(
+        request,
+        "_results.html",
+        {
+            "job": job,
+            "units": units,
+            "profile": meta.get("profile"),
+            "totals": {**_TOTALS_DEFAULTS, **meta.get("totals", {})},
+            "title": meta.get("title"),
+            "graph": graph,
+            "usage": meta.get("usage"),
+            "enrichment": meta.get("enrichment"),
+            "cleaning": meta.get("cleaning"),
+            "files": meta.get("files"),
+        },
+    )
 
 
 @router.post("/jobs/{job_id}/query", response_class=HTMLResponse)

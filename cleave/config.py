@@ -46,7 +46,7 @@ class ConfigError(ValueError):
 class Settings:
     """The resolved configuration for one run."""
 
-    llm: str                      # "" (auto) | none | ollama | gemini
+    llm: str  # "" (auto) | none | ollama | gemini
     gemini_api_key: str
     gemini_model: str
     ollama_url: str
@@ -168,7 +168,8 @@ def settings() -> Settings:
         stt_url=_url_env("CLEAVE_STT_URL", "http://127.0.0.1:8000"),
         video_url=_url_env("CLEAVE_VIDEO_URL", "http://127.0.0.1:8001"),
         log_level=_str_env("CLEAVE_LOG_LEVEL", "INFO").upper(),
-        offline_fallback=_str_env("CLEAVE_OFFLINE_FALLBACK", "1").lower() not in ("0", "false", "no"),
+        offline_fallback=_str_env("CLEAVE_OFFLINE_FALLBACK", "1").lower()
+        not in ("0", "false", "no"),
         weight_semantic=_float_env("CLEAVE_WEIGHT_SEMANTIC", 1.0),
         weight_structure=_float_env("CLEAVE_WEIGHT_STRUCTURE", 1.2),
         weight_temporal=_float_env("CLEAVE_WEIGHT_TEMPORAL", 1.0),
@@ -185,7 +186,8 @@ def settings() -> Settings:
         tabular_max_tokens=_int_env("CLEAVE_TABULAR_MAX_TOKENS", 1200, minimum=150),
         completeness_threshold=_float_env("CLEAVE_COMPLETENESS_THRESHOLD", 0.7, minimum=0.0),
         evaluation_mode=_str_env("CLEAVE_EVALUATION_MODE", "0").lower() in ("1", "true", "yes"),
-        allow_synthetic_fallback=_str_env("CLEAVE_ALLOW_SYNTHETIC_FALLBACK", "1").lower() not in ("0", "false", "no"),
+        allow_synthetic_fallback=_str_env("CLEAVE_ALLOW_SYNTHETIC_FALLBACK", "1").lower()
+        not in ("0", "false", "no"),
         weight_shot_change=_float_env("CLEAVE_WEIGHT_SHOT_CHANGE", 0.35),
         speaker_boundary_threshold=_float_env("CLEAVE_SPEAKER_BOUNDARY_THRESHOLD", 0.55),
     )

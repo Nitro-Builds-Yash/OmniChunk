@@ -26,6 +26,7 @@ def _install(monkeypatch, handler):
 
 # ───────── the STT worker is a separate process ─────────
 
+
 def test_a_stopped_stt_worker_gives_a_readable_error(monkeypatch, tmp_path):
     audio = tmp_path / "clip.m4a"
     audio.write_bytes(b"not really audio")
@@ -39,8 +40,8 @@ def test_a_stopped_stt_worker_gives_a_readable_error(monkeypatch, tmp_path):
         ingest_audio(audio)
 
     message = str(exc.value)
-    assert "127.0.0.1:8000" in message      # says where it looked
-    assert "start it" in message            # and what to do about it
+    assert "127.0.0.1:8000" in message  # says where it looked
+    assert "start it" in message  # and what to do about it
 
 
 def test_a_non_json_reply_is_also_reported_as_unavailable(monkeypatch, tmp_path):
@@ -64,10 +65,20 @@ def test_a_worker_error_field_is_surfaced(monkeypatch, tmp_path):
 def test_a_successful_transcript_becomes_elements(monkeypatch, tmp_path):
     audio = tmp_path / "clip.m4a"
     audio.write_bytes(b"x")
-    _install(monkeypatch, lambda r: httpx.Response(200, json={"result": {"segments": [
-        {"text": "Hello there.", "start": 0.0, "end": 2.0, "speaker": "A"},
-        {"text": "Hi back.", "start": 2.0, "end": 4.0, "speaker": "B"},
-    ]}}))
+    _install(
+        monkeypatch,
+        lambda r: httpx.Response(
+            200,
+            json={
+                "result": {
+                    "segments": [
+                        {"text": "Hello there.", "start": 0.0, "end": 2.0, "speaker": "A"},
+                        {"text": "Hi back.", "start": 2.0, "end": 4.0, "speaker": "B"},
+                    ]
+                }
+            },
+        ),
+    )
 
     result = ingest_audio(audio)
 
@@ -76,6 +87,7 @@ def test_a_successful_transcript_becomes_elements(monkeypatch, tmp_path):
 
 
 # ───────── one bad file must not discard the rest ─────────
+
 
 def test_one_failing_file_does_not_discard_the_others(monkeypatch, tmp_data_dir):
     """The regression: a stopped STT worker used to fail the whole job."""
@@ -97,7 +109,7 @@ def test_one_failing_file_does_not_discard_the_others(monkeypatch, tmp_data_dir)
 
     assert job.status == "done", f"job failed instead of degrading: {job.error}"
     record = json.loads((job.dir / "profile.json").read_text())
-    assert record["totals"]["units"] > 0                     # the markdown survived
+    assert record["totals"]["units"] > 0  # the markdown survived
     warnings = " ".join(record["totals"]["warnings"])
     assert "bad.m4a" in warnings and "STT worker" in warnings  # and the failure is reported
 
@@ -108,8 +120,9 @@ def test_a_job_where_everything_fails_is_still_an_error(monkeypatch, tmp_data_di
     only = tmp_data_dir / "only.m4a"
     only.write_bytes(b"x")
 
-    monkeypatch.setattr(pipeline, "_process_file",
-                        lambda *a, **k: (_ for _ in ()).throw(STTUnavailable("down")))
+    monkeypatch.setattr(
+        pipeline, "_process_file", lambda *a, **k: (_ for _ in ()).throw(STTUnavailable("down"))
+    )
     pipeline.run_job(job.id, [only])
 
     assert job.status == "error"
@@ -118,9 +131,11 @@ def test_a_job_where_everything_fails_is_still_an_error(monkeypatch, tmp_data_di
 
 # ───────── offline fallback mode ─────────
 
+
 def test_offline_fallback_allows_audio_ingestion_when_stt_is_down(monkeypatch, tmp_path):
     monkeypatch.setenv("CLEAVE_OFFLINE_FALLBACK", "1")
     from cleave import config
+
     config.reload()
     audio = tmp_path / "meeting_notes.m4a"
     audio.write_bytes(b"audio-bytes")
@@ -134,8 +149,10 @@ def test_offline_fallback_allows_audio_ingestion_when_stt_is_down(monkeypatch, t
 def test_offline_fallback_allows_video_ingestion_when_workers_are_down(monkeypatch, tmp_path):
     monkeypatch.setenv("CLEAVE_OFFLINE_FALLBACK", "1")
     from cleave import config
+
     config.reload()
     from cleave.ingest_video import ingest_video
+
     video = tmp_path / "IMG_8966 - Trim.mp4"
     video.write_bytes(b"video-bytes")
     _install(monkeypatch, lambda r: (_ for _ in ()).throw(httpx.ConnectError("refused", request=r)))

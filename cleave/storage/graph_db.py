@@ -4,7 +4,6 @@ references, and cross-document entity links) to Neo4j, with local in-memory fall
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 from typing import Any
@@ -52,49 +51,55 @@ class GraphDB:
         try:
             # Format graph nodes and edges for Neo4j Cypher Transaction API
             statements = []
-            
+
             # 1. Create/Merge Job Node
-            statements.append({
-                "statement": "MERGE (j:Job {id: $job_id})",
-                "parameters": {"job_id": job_id},
-            })
+            statements.append(
+                {
+                    "statement": "MERGE (j:Job {id: $job_id})",
+                    "parameters": {"job_id": job_id},
+                }
+            )
 
             # 2. Create Elements
             for node_id, data in graph.g.nodes(data=True):
-                statements.append({
-                    "statement": """
+                statements.append(
+                    {
+                        "statement": """
                     MERGE (e:ContentElement {id: $id, job_id: $job_id})
                     SET e.kind = $kind, e.text = $text, e.page = $page, e.speaker = $speaker
                     MERGE (j:Job {id: $job_id})
                     MERGE (j)-[:CONTAINS]->(e)
                     """,
-                    "parameters": {
-                        "id": node_id,
-                        "job_id": job_id,
-                        "kind": data.get("kind", ""),
-                        "text": (data.get("text") or "")[:200],  # truncated summary in graph
-                        "page": data.get("page"),
-                        "speaker": data.get("speaker"),
-                    },
-                })
+                        "parameters": {
+                            "id": node_id,
+                            "job_id": job_id,
+                            "kind": data.get("kind", ""),
+                            "text": (data.get("text") or "")[:200],  # truncated summary in graph
+                            "page": data.get("page"),
+                            "speaker": data.get("speaker"),
+                        },
+                    }
+                )
 
             # 3. Create Edges
             for u, v, edata in graph.g.edges(data=True):
                 rel = edata.get("type", "RELATED_TO").upper()
-                statements.append({
-                    "statement": f"""
+                statements.append(
+                    {
+                        "statement": f"""
                     MATCH (u:ContentElement {{id: $u, job_id: $job_id}}), (v:ContentElement {{id: $v, job_id: $job_id}})
                     MERGE (u)-[r:{rel}]->(v)
                     SET r.confidence = $confidence, r.evidence = $evidence
                     """,
-                    "parameters": {
-                        "u": u,
-                        "v": v,
-                        "job_id": job_id,
-                        "confidence": edata.get("confidence", 1.0),
-                        "evidence": edata.get("evidence", ""),
-                    },
-                })
+                        "parameters": {
+                            "u": u,
+                            "v": v,
+                            "job_id": job_id,
+                            "confidence": edata.get("confidence", 1.0),
+                            "evidence": edata.get("evidence", ""),
+                        },
+                    }
+                )
 
             # Submit batch cypher transaction via HTTP
             payload = {"statements": statements[:200]}  # capped batch
@@ -107,7 +112,12 @@ class GraphDB:
             )
             if r.status_code == 200 and not r.json().get("errors"):
                 stats["neo4j_synced"] = True
-                log.info("Persisted %d nodes and %d edges for job %s to Neo4j", graph.node_count, graph.edge_count, job_id)
+                log.info(
+                    "Persisted %d nodes and %d edges for job %s to Neo4j",
+                    graph.node_count,
+                    graph.edge_count,
+                    job_id,
+                )
             else:
                 log.warning("Neo4j transaction returned errors: %s", r.text[:200])
         except Exception as exc:

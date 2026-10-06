@@ -17,19 +17,23 @@ from cleave.web.uploads import MAX_FILES, safe_upload_name
 
 # ───────── filename sanitisation ─────────
 
-@pytest.mark.parametrize(("raw", "expected"), [
-    ("report.pdf", "report.pdf"),
-    ("../../../evil.txt", "evil.txt"),
-    ("..\\..\\evil.txt", "evil.txt"),
-    ("/etc/passwd.txt", "passwd.txt"),
-    ("C:\\Windows\\system32\\cmd.txt", "cmd.txt"),
-    ("a/b/c.pdf", "c.pdf"),
-    ("...", "upload0"),
-    ("..", "upload0"),
-    ("", "upload0"),
-    (None, "upload0"),
-    (".env", "env"),
-])
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("report.pdf", "report.pdf"),
+        ("../../../evil.txt", "evil.txt"),
+        ("..\\..\\evil.txt", "evil.txt"),
+        ("/etc/passwd.txt", "passwd.txt"),
+        ("C:\\Windows\\system32\\cmd.txt", "cmd.txt"),
+        ("a/b/c.pdf", "c.pdf"),
+        ("...", "upload0"),
+        ("..", "upload0"),
+        ("", "upload0"),
+        (None, "upload0"),
+        (".env", "env"),
+    ],
+)
 def test_upload_names_are_reduced_to_a_leaf(raw, expected):
     assert safe_upload_name(raw, 0) == expected
 
@@ -39,6 +43,7 @@ def test_upload_name_is_length_bounded():
 
 
 # ───────── upload route ─────────
+
 
 def _upload(client, filename: str, content: bytes = b"# hello\n\nsome text\n"):
     return client.post(
@@ -59,7 +64,7 @@ def test_traversal_filename_cannot_escape_the_job_directory(client, tmp_data_dir
     assert resp.status_code == 303
     assert not outside.exists()
     written = [p.name for p in tmp_data_dir.rglob("*") if p.is_file()]
-    assert written == ["pwned.txt"]          # kept, but as a leaf inside the job dir
+    assert written == ["pwned.txt"]  # kept, but as a leaf inside the job dir
 
 
 def test_windows_separators_are_also_stripped(client, tmp_data_dir, monkeypatch):
@@ -76,13 +81,11 @@ def test_unsupported_extension_is_rejected(client, monkeypatch):
     assert resp.status_code == 415
 
 
-def test_too_many_files_is_rejected_before_anything_is_written(
-        client, tmp_data_dir, monkeypatch):
+def test_too_many_files_is_rejected_before_anything_is_written(client, tmp_data_dir, monkeypatch):
     monkeypatch.setattr("cleave.pipeline.run_job", lambda *a, **k: None)
     files = [("files", (f"f{i}.txt", b"x", "text/plain")) for i in range(MAX_FILES + 1)]
 
-    resp = client.post("/api/jobs", files=files, data={"use_llm": "false"},
-                       follow_redirects=False)
+    resp = client.post("/api/jobs", files=files, data={"use_llm": "false"}, follow_redirects=False)
 
     assert resp.status_code == 413
     assert not list(tmp_data_dir.rglob("*.txt"))
@@ -90,12 +93,16 @@ def test_too_many_files_is_rejected_before_anything_is_written(
 
 # ───────── artifact routes ─────────
 
-@pytest.mark.parametrize("job_id", [
-    "nonexistent",
-    "../..",
-    "..%2f..",
-    "../../../etc",
-])
+
+@pytest.mark.parametrize(
+    "job_id",
+    [
+        "nonexistent",
+        "../..",
+        "..%2f..",
+        "../../../etc",
+    ],
+)
 def test_artifact_routes_reject_unknown_or_traversing_ids(client, job_id):
     """These three routes used to build a path straight from the URL."""
     for artifact in ("units", "graph", "profile"):
@@ -121,6 +128,7 @@ def test_artifact_route_serves_a_real_job(client, tmp_data_dir):
 
 
 # ───────── resilience of the read paths ─────────
+
 
 def test_homepage_survives_a_corrupt_scorecard(client, tmp_path, monkeypatch):
     """A malformed scorecard used to take the whole homepage down."""
@@ -155,10 +163,11 @@ def test_results_tolerate_a_profile_without_totals(client, tmp_data_dir):
 
 # ───────── the rest of the surface ─────────
 
+
 def test_health_reports_the_selected_provider(client):
     body = client.get("/health").json()
     assert body["ok"] is True
-    assert body["llm"] == "none"          # CLEAVE_LLM=none, set by conftest
+    assert body["llm"] == "none"  # CLEAVE_LLM=none, set by conftest
 
 
 def test_usage_endpoint_lists_providers(client):
@@ -193,7 +202,8 @@ def test_rehydrate_skips_a_corrupt_profile_without_crashing(tmp_data_dir):
     (tmp_data_dir / "bad0000000" / "profile.json").write_text("{ not json")
     (tmp_data_dir / "good000000").mkdir(parents=True)
     (tmp_data_dir / "good000000" / "profile.json").write_text(
-        json.dumps({"totals": {"wall_clock_s": 1.5}, "title": "fine"}))
+        json.dumps({"totals": {"wall_clock_s": 1.5}, "title": "fine"})
+    )
 
     jobs_mod.rehydrate_jobs()
 
@@ -202,6 +212,7 @@ def test_rehydrate_skips_a_corrupt_profile_without_crashing(tmp_data_dir):
 
 
 # ───────── image uploads & export formats ─────────
+
 
 def test_image_uploads_are_accepted(client, tmp_data_dir, monkeypatch):
     monkeypatch.setattr("cleave.pipeline.run_job", lambda *a, **k: None)
@@ -215,19 +226,21 @@ def test_export_formats_return_structured_payloads(client, tmp_data_dir):
     job = jobs_mod.Job(id="exp1234567", filename="doc.pdf", status="done", progress=100)
     jobs_mod.JOBS[job.id] = job
     job.dir.mkdir(parents=True, exist_ok=True)
-    sample_units = [{
-        "id": "ku_0001",
-        "content": "Sample chunk content",
-        "embed_text": "Overview > Section 1\n\nSample chunk content",
-        "modality": "document",
-        "context": {"heading_path": ["Overview", "Section 1"], "document_title": "Test Doc"},
-        "provenance": {"source_uri": "doc.pdf"},
-        "decision": {"strategy": "structural", "reason": "section under budget"},
-        "knowledge_unit_type": "section",
-        "context_completeness": 1.0,
-        "relationships": [{"type": "references", "target_id": "ku_0002"}],
-        "token_count": 25,
-    }]
+    sample_units = [
+        {
+            "id": "ku_0001",
+            "content": "Sample chunk content",
+            "embed_text": "Overview > Section 1\n\nSample chunk content",
+            "modality": "document",
+            "context": {"heading_path": ["Overview", "Section 1"], "document_title": "Test Doc"},
+            "provenance": {"source_uri": "doc.pdf"},
+            "decision": {"strategy": "structural", "reason": "section under budget"},
+            "knowledge_unit_type": "section",
+            "context_completeness": 1.0,
+            "relationships": [{"type": "references", "target_id": "ku_0002"}],
+            "token_count": 25,
+        }
+    ]
     (job.dir / "units.json").write_text(json.dumps(sample_units))
 
     # 1. LangChain export
@@ -257,4 +270,3 @@ def test_export_formats_return_structured_payloads(client, tmp_data_dir):
     assert chroma_resp.status_code == 200
     chroma_data = chroma_resp.json()
     assert chroma_data["ids"] == ["ku_0001"]
-

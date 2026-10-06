@@ -1,6 +1,6 @@
 """Tests for event messaging and distributed job dispatch."""
 
-from cleave.events.producer import EventProducer, IngestionEvent, get_event_producer
+from cleave.events.producer import EventProducer, IngestionEvent
 
 
 def test_event_producer_local_subscribers():

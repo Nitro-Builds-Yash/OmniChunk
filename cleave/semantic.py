@@ -52,6 +52,7 @@ def semantic_groups(stream: list[ContentElement]) -> list[list[ContentElement]] 
     # SentenceTransformer.encode() returns a numpy array when normalize=True,
     # so element-wise multiply + row-sum is cheaper than a Python loop.
     import numpy as np  # noqa: PLC0415
+
     vecs = np.asarray(vecs)
     sims = np.sum(vecs[:-1] * vecs[1:], axis=1)
     mean = float(sims.mean())

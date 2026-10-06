@@ -105,16 +105,18 @@ def _route(p: Profile) -> tuple[str, str]:
 
 # ───────── cut selection with universal boundary engine and hard vetoes ─────────
 
+
 @dataclass(slots=True)
 class CutResult:
-    index: int | None                 # boundary BEFORE elements[index]; None = keep whole
+    index: int | None  # boundary BEFORE elements[index]; None = keep whole
     vetoes: list[str] = field(default_factory=list)
     overflow: bool = False
     trace: dict[str, Any] = field(default_factory=dict)
 
 
-def choose_cut(region: list[ContentElement], graph: ContextGraph,
-               target_tokens: int = TARGET_TOKENS) -> CutResult:
+def choose_cut(
+    region: list[ContentElement], graph: ContextGraph, target_tokens: int = TARGET_TOKENS
+) -> CutResult:
     """Pick the optimal boundary that maximizes multi-modal cohesion and severs
     no hard relationship. Overflow beats severance: if every candidate is vetoed,
     the region stays whole and says so."""
@@ -124,13 +126,17 @@ def choose_cut(region: list[ContentElement], graph: ContextGraph,
 
 def _caption_pair(a: ContentElement, b: ContentElement, graph: ContextGraph) -> str | None:
     for x, y in ((a, b), (b, a)):
-        if (x.kind == "caption" and y.kind in ("table", "figure")
-                and x.id in graph.captions_of(y.id)):
+        if (
+            x.kind == "caption"
+            and y.kind in ("table", "figure")
+            and x.id in graph.captions_of(y.id)
+        ):
             return f"CAPTIONS {x.id} ↔ {y.id}"
     return None
 
 
 # ───────── escalation (flags only — executing LLM calls is a stretch stage) ─────────
+
 
 def anaphora_rate(text: str) -> float:
     sentences = [s for s in _SENT_SPLIT.split(text) if s.strip()]
@@ -140,8 +146,13 @@ def anaphora_rate(text: str) -> float:
     return hits / len(sentences)
 
 
-def escalation_flags(content: str, heading_path: list[str], strategy: str,
-                     kind: str = "text", has_caption: bool = True) -> list[str]:
+def escalation_flags(
+    content: str,
+    heading_path: list[str],
+    strategy: str,
+    kind: str = "text",
+    has_caption: bool = True,
+) -> list[str]:
     flags: list[str] = []
     rate = anaphora_rate(content)
     if rate > 0.10:

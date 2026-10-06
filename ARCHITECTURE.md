@@ -145,16 +145,16 @@ the UI, so cleaning is as auditable as chunking is, rather than happening invisi
 @dataclass(slots=True)
 class ContentElement:
     id: str
-    kind: str          # heading | paragraph | table | figure | caption | speech_segment | …
+    kind: str  # heading | paragraph | table | figure | caption | speech_segment | …
     text: str
-    level: int | None          # heading depth
-    parent_id: str | None      # heading ancestry
+    level: int | None  # heading depth
+    parent_id: str | None  # heading ancestry
     page: int | None
-    bbox: tuple | None         # spatial, inline
-    t0: float | None           # temporal, inline
+    bbox: tuple | None  # spatial, inline
+    t0: float | None  # temporal, inline
     t1: float | None
     speaker: str | None
-    meta: dict                 # table grid, header row, sheet name, worker extras
+    meta: dict  # table grid, header row, sheet name, worker extras
 ```
 
 Spatial and temporal facts live *on* the element rather than in parallel arrays, so no
@@ -392,15 +392,15 @@ The output contract, and the interface external workers implement.
 @dataclass(slots=True)
 class KnowledgeUnit:
     id: str
-    content: str                       # the retrievable text
+    content: str  # the retrievable text
     modality: Modality
-    context: Context                   # title, heading_path, situating_summary,
-                                       #   leading/trailing prose, tier
-    provenance: Provenance             # source_uri, sha256, page, bbox
-    decision: ChunkingDecision         # strategy, reason, signals, vetoed_cuts,
-                                       #   escalation_flags, llm_calls, cost_usd
+    context: Context  # title, heading_path, situating_summary,
+    #   leading/trailing prose, tier
+    provenance: Provenance  # source_uri, sha256, page, bbox
+    decision: ChunkingDecision  # strategy, reason, signals, vetoed_cuts,
+    #   escalation_flags, llm_calls, cost_usd
     relationships: list[Relationship]  # type, target, confidence, evidence
-    temporal: Temporal | None          # start_s, end_s, speaker
+    temporal: Temporal | None  # start_s, end_s, speaker
     entities: list[str]
     metadata: dict
     token_count: int

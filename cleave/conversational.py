@@ -15,15 +15,23 @@ from .models import ContentElement, KnowledgeUnitType
 log = logging.getLogger(__name__)
 
 _DECISION_PATTERNS = [
-    re.compile(r"\b(we (agreed|decided|concluded)|decision (is|was)|let's (go with|move forward with|adopt)|consensus is|approved)\b", re.I),
+    re.compile(
+        r"\b(we (agreed|decided|concluded)|decision (is|was)|let's (go with|move forward with|adopt)|consensus is|approved)\b",
+        re.I,
+    ),
 ]
 
 _ACTION_PATTERNS = [
-    re.compile(r"\b(action item|to-?do|will follow up|assign(ed)? to|take the lead on|action point)\b", re.I),
+    re.compile(
+        r"\b(action item|to-?do|will follow up|assign(ed)? to|take the lead on|action point)\b",
+        re.I,
+    ),
 ]
 
 _QUESTION_PATTERNS = [
-    re.compile(r"^(who|what|where|when|why|how|can|could|would|should|is|are|do|does|did)\b.*\?", re.I),
+    re.compile(
+        r"^(who|what|where|when|why|how|can|could|would|should|is|are|do|does|did)\b.*\?", re.I
+    ),
     re.compile(r"\?$", re.M),
 ]
 
@@ -50,7 +58,11 @@ def classify_conversational_elements(
         }
 
     # 3. Question-Answer pairing
-    has_question = any(any(rx.search(e.text) for rx in _QUESTION_PATTERNS) for e in elements[:-1]) if len(elements) > 1 else False
+    has_question = (
+        any(any(rx.search(e.text) for rx in _QUESTION_PATTERNS) for e in elements[:-1])
+        if len(elements) > 1
+        else False
+    )
     if has_question and len(speakers) > 1:
         return KnowledgeUnitType.QUESTION_ANSWER.value, {
             "participants": speakers,

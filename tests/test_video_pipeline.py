@@ -15,9 +15,7 @@ Covers all 10 required test cases:
 
 from __future__ import annotations
 
-import os
-
-import pytest
+from pathlib import Path
 
 from cleave.boundary_engine import generate_candidates_for_region
 from cleave.chunkers import _temporal_units, chunk
@@ -25,7 +23,7 @@ from cleave.chunkers_multimodal import chunk_multimodal_stream
 from cleave.config import reload
 from cleave.graph import ContextGraph
 from cleave.ingest_document import IngestResult
-from cleave.ingest_video import VideoWorkerUnavailable, _synthetic_fallback
+from cleave.ingest_video import _synthetic_fallback
 from cleave.models import (
     ContentElement,
     KnowledgeUnitType,
@@ -33,22 +31,22 @@ from cleave.models import (
     Provenance,
 )
 from cleave.video_boundary import (
-    _compute_semantic_shifts,
     fusion_confidence,
     propagate_context,
     select_event_windows,
 )
-from pathlib import Path
-
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
+
 def _new_id_factory():
     counter = [0]
+
     def _new_id():
         uid = f"ku_{counter[0]:04d}"
         counter[0] += 1
         return uid
+
     return _new_id
 
 
@@ -67,6 +65,7 @@ def _make_ingest(elements, title="Test"):
 
 # ── Test 1: Same visual scene + semantic topic change ─────────────────────────
 
+
 def test_semantic_boundary_without_visual_change():
     """Same visual scene throughout but speech topic changes sharply.
 
@@ -77,15 +76,21 @@ def test_semantic_boundary_without_visual_change():
     # Two speech segments with very different topics but the same visual summary
     elements = [
         ContentElement(
-            id="s1", kind="speech_segment",
+            id="s1",
+            kind="speech_segment",
             text="Q3 revenue exceeded projections by fifteen percent, driven by European markets.",
-            t0=0.0, t1=10.0, speaker="Alice",
+            t0=0.0,
+            t1=10.0,
+            speaker="Alice",
             meta={"visual_summary": "financial dashboard"},
         ),
         ContentElement(
-            id="s2", kind="speech_segment",
+            id="s2",
+            kind="speech_segment",
             text="We will now discuss the recent layoffs and restructuring of the engineering division.",
-            t0=10.5, t1=22.0, speaker="Alice",
+            t0=10.5,
+            t1=22.0,
+            speaker="Alice",
             meta={"visual_summary": "financial dashboard"},  # same scene
         ),
     ]
@@ -103,6 +108,7 @@ def test_semantic_boundary_without_visual_change():
 
 # ── Test 2: Speaker change + continuous Q&A ───────────────────────────────────
 
+
 def test_speaker_change_audio_path_always_splits():
     """In the audio-only path (_temporal_units), speaker changes are always hard
     boundaries to preserve attribution. Speaker B's reply must never be merged
@@ -110,21 +116,30 @@ def test_speaker_change_audio_path_always_splits():
     """
     elements = [
         ContentElement(
-            id="q1", kind="speech_segment",
+            id="q1",
+            kind="speech_segment",
             text="What is the project deadline?",
-            t0=0.0, t1=2.5, speaker="Alice",
+            t0=0.0,
+            t1=2.5,
+            speaker="Alice",
             meta={},
         ),
         ContentElement(
-            id="a1", kind="speech_segment",
+            id="a1",
+            kind="speech_segment",
             text="Friday.",
-            t0=2.6, t1=3.2, speaker="Bob",   # short, different speaker
+            t0=2.6,
+            t1=3.2,
+            speaker="Bob",  # short, different speaker
             meta={},
         ),
         ContentElement(
-            id="f1", kind="speech_segment",
+            id="f1",
+            kind="speech_segment",
             text="Okay, I will submit it by end of day Thursday.",
-            t0=3.3, t1=6.0, speaker="Alice",
+            t0=3.3,
+            t1=6.0,
+            speaker="Alice",
             meta={},
         ),
     ]
@@ -152,21 +167,30 @@ def test_speaker_change_multimodal_path_can_keep_qa_together():
     """
     elements = [
         ContentElement(
-            id="q1", kind="speech_segment",
+            id="q1",
+            kind="speech_segment",
             text="What is the project deadline?",
-            t0=0.0, t1=2.5, speaker="Alice",
+            t0=0.0,
+            t1=2.5,
+            speaker="Alice",
             meta={"visual_summary": "whiteboard discussion"},
         ),
         ContentElement(
-            id="a1", kind="speech_segment",
+            id="a1",
+            kind="speech_segment",
             text="Friday.",
-            t0=2.6, t1=3.2, speaker="Bob",  # tiny gap, no visual change
+            t0=2.6,
+            t1=3.2,
+            speaker="Bob",  # tiny gap, no visual change
             meta={"visual_summary": "whiteboard discussion"},  # same scene
         ),
         ContentElement(
-            id="f1", kind="speech_segment",
+            id="f1",
+            kind="speech_segment",
             text="Okay, I will submit it by end of day Thursday.",
-            t0=3.3, t1=6.0, speaker="Alice",
+            t0=3.3,
+            t1=6.0,
+            speaker="Alice",
             meta={"visual_summary": "whiteboard discussion"},
         ),
     ]
@@ -183,8 +207,8 @@ def test_speaker_change_multimodal_path_can_keep_qa_together():
     assert elements[2].speaker == "Alice"
 
 
-
 # ── Test 3: Multiple signals aligned -> higher confidence ─────────────────────
+
 
 def test_cross_modal_agreement_boosts_confidence():
     """When speaker change + visual scene change + OCR change + temporal pause
@@ -192,15 +216,21 @@ def test_cross_modal_agreement_boosts_confidence():
     """
     elements = [
         ContentElement(
-            id="s1", kind="speech_segment",
+            id="s1",
+            kind="speech_segment",
             text="Let us now wrap up the architecture discussion.",
-            t0=0.0, t1=10.0, speaker="Alice",
+            t0=0.0,
+            t1=10.0,
+            speaker="Alice",
             meta={"visual_summary": "architecture slide", "ocr_text": "System Architecture"},
         ),
         ContentElement(
-            id="s2", kind="speech_segment",
+            id="s2",
+            kind="speech_segment",
             text="Moving to the product roadmap for next year.",
-            t0=13.0, t1=24.0, speaker="Bob",  # 3s gap + speaker change
+            t0=13.0,
+            t1=24.0,
+            speaker="Bob",  # 3s gap + speaker change
             meta={"visual_summary": "roadmap timeline", "ocr_text": "2027 Product Roadmap"},
         ),
     ]
@@ -221,35 +251,48 @@ def test_cross_modal_agreement_boosts_confidence():
 
 # ── Test 4: Shot-only change -> weaker boundary than scene change ─────────────
 
+
 def test_shot_change_weaker_than_scene_change():
     """A camera-angle cut (visual_change_type="shot") must produce a weaker
     visual_change signal than a semantic scene transition.
     """
     shot_elements = [
         ContentElement(
-            id="sh1", kind="speech_segment",
+            id="sh1",
+            kind="speech_segment",
             text="Close-up of the speaker.",
-            t0=0.0, t1=5.0, speaker="A",
+            t0=0.0,
+            t1=5.0,
+            speaker="A",
             meta={"visual_change_type": "shot", "visual_summary": "presenter close-up"},
         ),
         ContentElement(
-            id="sh2", kind="speech_segment",
+            id="sh2",
+            kind="speech_segment",
             text="Wide-angle of the same room.",
-            t0=5.1, t1=10.0, speaker="A",
+            t0=5.1,
+            t1=10.0,
+            speaker="A",
             meta={"visual_change_type": "shot", "visual_summary": "presenter wide-angle"},
         ),
     ]
     scene_elements = [
         ContentElement(
-            id="sc1", kind="speech_segment",
+            id="sc1",
+            kind="speech_segment",
             text="We are in the conference room presenting the financial results.",
-            t0=0.0, t1=5.0, speaker="A",
+            t0=0.0,
+            t1=5.0,
+            speaker="A",
             meta={"visual_change_type": "scene", "visual_summary": "conference room"},
         ),
         ContentElement(
-            id="sc2", kind="speech_segment",
+            id="sc2",
+            kind="speech_segment",
             text="Now we move to the lab to see the demo.",
-            t0=5.1, t1=10.0, speaker="A",
+            t0=5.1,
+            t1=10.0,
+            speaker="A",
             meta={"visual_change_type": "scene", "visual_summary": "lab demo area"},
         ),
     ]
@@ -257,7 +300,9 @@ def test_shot_change_weaker_than_scene_change():
     graph_scene = ContextGraph(scene_elements)
 
     shot_cands = generate_candidates_for_region(shot_elements, graph_shot, modality=Modality.VIDEO)
-    scene_cands = generate_candidates_for_region(scene_elements, graph_scene, modality=Modality.VIDEO)
+    scene_cands = generate_candidates_for_region(
+        scene_elements, graph_scene, modality=Modality.VIDEO
+    )
 
     shot_visual = shot_cands[0].signals.get("visual_change", 0.0)
     scene_visual = scene_cands[0].signals.get("visual_change", 0.0)
@@ -265,11 +310,12 @@ def test_shot_change_weaker_than_scene_change():
     assert shot_visual < scene_visual, (
         f"Shot change ({shot_visual:.2f}) should be weaker than scene change ({scene_visual:.2f})"
     )
-    assert shot_visual <= 0.5   # shot is weak
+    assert shot_visual <= 0.5  # shot is weak
     assert scene_visual >= 0.7  # scene is meaningful
 
 
 # ── Test 5: Low semantic similarity -> weak fusion ────────────────────────────
+
 
 def test_weak_fusion_when_semantic_overlap_low():
     """Speech about software architecture over a slide about cooking recipes
@@ -277,17 +323,22 @@ def test_weak_fusion_when_semantic_overlap_low():
     """
     speech_segs = [
         ContentElement(
-            id="sp1", kind="speech_segment",
+            id="sp1",
+            kind="speech_segment",
             text="The microservice handles authentication via JWT tokens.",
-            t0=0.0, t1=8.0, speaker="A",
+            t0=0.0,
+            t1=8.0,
+            speaker="A",
             meta={"entities": ["JWT", "microservice", "authentication"]},
         ),
     ]
     visual_els = [
         ContentElement(
-            id="v1", kind="visual_event",
+            id="v1",
+            kind="visual_event",
             text="Pasta recipe: boil for 12 minutes.",
-            t0=0.0, t1=8.0,
+            t0=0.0,
+            t1=8.0,
             meta={"entities": ["pasta", "recipe", "cooking"]},
         ),
     ]
@@ -298,41 +349,55 @@ def test_weak_fusion_when_semantic_overlap_low():
 
 # ── Test 6: High entity overlap -> strong fusion ──────────────────────────────
 
+
 def test_strong_fusion_when_entities_overlap():
     """Speech and visual describing the same action with the same entities
     should produce a strong fusion label.
     """
     speech_segs = [
         ContentElement(
-            id="sp2", kind="speech_segment",
+            id="sp2",
+            kind="speech_segment",
             text="Now connect the battery to the main connector on the device.",
-            t0=130.0, t1=145.0, speaker="A",
+            t0=130.0,
+            t1=145.0,
+            speaker="A",
             meta={"entities": ["battery", "connector", "device"]},
         ),
     ]
     visual_els = [
         ContentElement(
-            id="v2", kind="visual_event",
+            id="v2",
+            kind="visual_event",
             text="Person connects battery to device connector.",
-            t0=128.0, t1=148.0,
+            t0=128.0,
+            t1=148.0,
             meta={"entities": ["battery", "connector", "device"]},
         ),
     ]
     score, label = fusion_confidence(speech_segs, visual_els)
-    assert label in ("strong", "medium"), f"Expected strong/medium fusion, got {label} (score={score})"
+    assert label in ("strong", "medium"), (
+        f"Expected strong/medium fusion, got {label} (score={score})"
+    )
     assert score >= 0.5
 
 
 # ── Test 7: Context propagation carries last speaker ─────────────────────────
+
 
 def test_context_propagation_carries_speaker_and_entities():
     """propagate_context() must carry the last speaker and entities forward
     so that pronouns in subsequent chunks remain resolvable.
     """
     from cleave.models import (
-        ChunkingDecision, Context, KnowledgeUnit, Modality,
-        Provenance, Temporal,
+        ChunkingDecision,
+        Context,
+        KnowledgeUnit,
+        Modality,
+        Provenance,
+        Temporal,
     )
+
     prev_unit = KnowledgeUnit(
         id="ku_prev",
         content="The CEO explains the company expansion strategy.",
@@ -356,6 +421,7 @@ def test_context_propagation_none_for_first_chunk():
 
 
 # ── Test 8: Synthetic fallback is explicitly marked ──────────────────────────
+
 
 def test_synthetic_fallback_metadata():
     """All elements from the offline synthetic fallback must be marked with
@@ -381,7 +447,6 @@ def test_synthetic_fallback_disabled_raises(monkeypatch):
     """When CLEAVE_ALLOW_SYNTHETIC_FALLBACK=0, VideoWorkerUnavailable should
     be raised instead of silently producing synthetic data.
     """
-    import cleave.ingest_video as iv
     monkeypatch.setenv("CLEAVE_ALLOW_SYNTHETIC_FALLBACK", "0")
     monkeypatch.setenv("CLEAVE_OFFLINE_FALLBACK", "0")
     reload()
@@ -389,6 +454,7 @@ def test_synthetic_fallback_disabled_raises(monkeypatch):
         # Simulate reaching the synthetic decision point:
         # allow_synthetic = cfg.allow_synthetic_fallback and (cfg.offline_fallback or cfg.evaluation_mode)
         from cleave.config import settings
+
         cfg = settings()
         allow = cfg.allow_synthetic_fallback and (cfg.offline_fallback or cfg.evaluation_mode)
         assert not allow, "allow_synthetic should be False when both flags are 0"
@@ -400,27 +466,34 @@ def test_synthetic_fallback_disabled_raises(monkeypatch):
 
 # ── Test 9: Audio-only fallback ───────────────────────────────────────────────
 
+
 def test_audio_only_fallback_still_chunks_correctly():
     """When there are no visual events (STT-only path), chunk_multimodal_stream
     must delegate to _temporal_units and produce valid KnowledgeUnits.
     """
     elements = [
         ContentElement(
-            id="sp1", kind="speech_segment",
+            id="sp1",
+            kind="speech_segment",
             text="This is the first part of the explanation.",
-            t0=0.0, t1=8.0, speaker="Alice",
+            t0=0.0,
+            t1=8.0,
+            speaker="Alice",
         ),
         ContentElement(
-            id="sp2", kind="speech_segment",
+            id="sp2",
+            kind="speech_segment",
             text="Then we continue with the implementation details.",
-            t0=15.0, t1=25.0, speaker="Bob",  # long gap + speaker change -> should split
+            t0=15.0,
+            t1=25.0,
+            speaker="Bob",  # long gap + speaker change -> should split
         ),
     ]
     graph = ContextGraph(elements)
     new_id = _new_id_factory()
     units = chunk_multimodal_stream(elements, graph, new_id, _base_prov, title="Audio Lecture")
     assert len(units) >= 1
-    for unit, member_ids in units:
+    for unit, _member_ids in units:
         assert unit.modality == Modality.AUDIO
         assert unit.temporal is not None
         assert unit.content
@@ -428,25 +501,28 @@ def test_audio_only_fallback_still_chunks_correctly():
 
 # ── Test 10: Document/audio regression ───────────────────────────────────────
 
+
 def test_document_chunking_regression():
     """Existing document chunking must produce correct output with no regression."""
     elements = [
         ContentElement(id="h1", kind="heading", text="1. Introduction", level=1),
         ContentElement(
-            id="p1", kind="paragraph",
+            id="p1",
+            kind="paragraph",
             text="This document describes a new approach to universal chunking.",
             parent_id="h1",
         ),
         ContentElement(id="h2", kind="heading", text="2. Method", level=1),
         ContentElement(
-            id="p2", kind="paragraph",
+            id="p2",
+            kind="paragraph",
             text="The method combines multiple modalities for boundary detection.",
             parent_id="h2",
         ),
     ]
     ingest = _make_ingest(elements, title="Research Paper")
     graph = ContextGraph(elements)
-    units, profile = chunk(ingest, graph)
+    units, _profile = chunk(ingest, graph)
 
     assert len(units) >= 1
     for u in units:
@@ -461,14 +537,20 @@ def test_audio_chunking_regression():
     """
     elements = [
         ContentElement(
-            id="sp1", kind="speech_segment",
+            id="sp1",
+            kind="speech_segment",
             text="Let me give you the full project status update for this quarter.",
-            t0=0.0, t1=10.0, speaker="Alice",
+            t0=0.0,
+            t1=10.0,
+            speaker="Alice",
         ),
         ContentElement(
-            id="sp2", kind="speech_segment",
+            id="sp2",
+            kind="speech_segment",
             text="We completed three milestones ahead of schedule.",
-            t0=10.2, t1=16.0, speaker="Alice",  # same speaker, no gap
+            t0=10.2,
+            t1=16.0,
+            speaker="Alice",  # same speaker, no gap
         ),
     ]
     ingest = _make_ingest(elements, title="Status Meeting")
@@ -485,9 +567,11 @@ def test_audio_chunking_regression():
 
 # ── Test 11 (bonus): BoundaryCandidate signals are well-formed ────────────────
 
+
 def test_boundary_candidate_to_dict_includes_all_fields():
     """BoundaryCandidate.to_dict() must serialise correctly with all new signals."""
     from cleave.models import BoundaryCandidate, Modality
+
     cand = BoundaryCandidate(
         index=1,
         timestamp=12.5,
@@ -517,19 +601,26 @@ def test_boundary_candidate_to_dict_includes_all_fields():
 
 # ── Test 12 (bonus): select_event_windows returns correct structure ───────────
 
+
 def test_select_event_windows_returns_boundary_metadata():
     """select_event_windows() must return window dicts with boundary_metadata."""
     elements = [
         ContentElement(
-            id="e1", kind="speech_segment",
+            id="e1",
+            kind="speech_segment",
             text="Opening discussion on revenue.",
-            t0=0.0, t1=8.0, speaker="Alice",
+            t0=0.0,
+            t1=8.0,
+            speaker="Alice",
             meta={"visual_summary": "revenue slide", "ocr_text": "Q3 Revenue"},
         ),
         ContentElement(
-            id="e2", kind="speech_segment",
+            id="e2",
+            kind="speech_segment",
             text="Now the engineering roadmap for next year.",
-            t0=12.0, t1=22.0, speaker="Bob",
+            t0=12.0,
+            t1=22.0,
+            speaker="Bob",
             meta={"visual_summary": "roadmap view", "ocr_text": "2027 Roadmap"},
         ),
     ]

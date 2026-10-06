@@ -71,9 +71,13 @@ def ingest_video(path: str | Path) -> IngestResult:
         )
         if resp.status_code == 200:
             data = resp.json()
-            elements = [_element_from_video_dict(d, i) for i, d in enumerate(data.get("elements", []))]
+            elements = [
+                _element_from_video_dict(d, i) for i, d in enumerate(data.get("elements", []))
+            ]
             if elements:
-                log.info("ingest_video: %d elements from video worker for %s", len(elements), path.name)
+                log.info(
+                    "ingest_video: %d elements from video worker for %s", len(elements), path.name
+                )
                 return IngestResult(
                     elements=elements,
                     title=data.get("title") or path.stem,
@@ -102,15 +106,17 @@ def ingest_video(path: str | Path) -> IngestResult:
             text = (seg.get("text") or "").strip()
             if not text:
                 continue
-            elements.append(ContentElement(
-                id=f"v_seg_{i:04d}",
-                kind="speech_segment",
-                text=text,
-                t0=float(seg.get("start", 0.0)),
-                t1=float(seg.get("end", 0.0)),
-                speaker=seg.get("speaker"),
-                meta={"source": "video_audio_track", "extraction_mode": "stt_worker"},
-            ))
+            elements.append(
+                ContentElement(
+                    id=f"v_seg_{i:04d}",
+                    kind="speech_segment",
+                    text=text,
+                    t0=float(seg.get("start", 0.0)),
+                    t1=float(seg.get("end", 0.0)),
+                    speaker=seg.get("speaker"),
+                    meta={"source": "video_audio_track", "extraction_mode": "stt_worker"},
+                )
+            )
         if elements:
             warnings.append("processed video audio track via STT worker (visual analysis inactive)")
         return IngestResult(
@@ -122,7 +128,9 @@ def ingest_video(path: str | Path) -> IngestResult:
         )
     except Exception as exc:
         # Decide whether to raise or fall back to synthetic data
-        allow_synthetic = cfg.allow_synthetic_fallback and (cfg.offline_fallback or cfg.evaluation_mode)
+        allow_synthetic = cfg.allow_synthetic_fallback and (
+            cfg.offline_fallback or cfg.evaluation_mode
+        )
         if not allow_synthetic:
             raise VideoWorkerUnavailable(
                 f"Video worker ({video_url}) and STT worker ({stt_url}) did not respond ({exc}). "
@@ -132,9 +140,12 @@ def ingest_video(path: str | Path) -> IngestResult:
         log.warning(
             "Video/STT workers offline (%s) — using resilient multimodal video fallback for %s. "
             "All generated elements are marked synthetic with data_confidence=0.0.",
-            exc, path.name,
+            exc,
+            path.name,
         )
-        warnings.append("Video/STT workers offline: generated resilient multimodal video elements for evaluation (synthetic data — do not use as evidence)")
+        warnings.append(
+            "Video/STT workers offline: generated resilient multimodal video elements for evaluation (synthetic data — do not use as evidence)"
+        )
         return _synthetic_fallback(path, warnings)
 
 
@@ -159,9 +170,11 @@ def _synthetic_fallback(path: Path, warnings: list[str]) -> IngestResult:
     stem_clean = path.stem.replace("_", " ").replace("-", " ")
     elements = [
         ContentElement(
-            id="v_el_0000", kind="visual_event",
+            id="v_el_0000",
+            kind="visual_event",
             text=f"Title card: {stem_clean}",
-            t0=0.0, t1=5.0,
+            t0=0.0,
+            t1=5.0,
             meta={
                 "visual_summary": f"Slide showing {stem_clean} overview",
                 "scene": "introduction",
@@ -170,27 +183,35 @@ def _synthetic_fallback(path: Path, warnings: list[str]) -> IngestResult:
             },
         ),
         ContentElement(
-            id="v_el_0001", kind="speech_segment",
+            id="v_el_0001",
+            kind="speech_segment",
             text=f"In this video session on {stem_clean}, we will examine the main components and key results.",
-            t0=1.0, t1=8.5, speaker="SPEAKER_01",
+            t0=1.0,
+            t1=8.5,
+            speaker="SPEAKER_01",
             meta={
                 "visual_summary": "presenter introducing topic at whiteboard",
                 **_SYNTHETIC_META,
             },
         ),
         ContentElement(
-            id="v_el_0002", kind="speech_segment",
+            id="v_el_0002",
+            kind="speech_segment",
             text="As shown on this slide, the system architecture connects extraction, graph relationships, and chunking.",
-            t0=9.0, t1=18.0, speaker="SPEAKER_01",
+            t0=9.0,
+            t1=18.0,
+            speaker="SPEAKER_01",
             meta={
                 "visual_summary": "architecture diagram displayed on screen with pipeline stages",
                 **_SYNTHETIC_META,
             },
         ),
         ContentElement(
-            id="v_el_0003", kind="visual_event",
+            id="v_el_0003",
+            kind="visual_event",
             text="Demonstration of output knowledge units and evaluation scorecard",
-            t0=18.5, t1=25.0,
+            t0=18.5,
+            t1=25.0,
             meta={
                 "visual_summary": "dashboard showing metrics table and graph visualization",
                 "scene": "demo",
@@ -232,4 +253,3 @@ def _element_from_video_dict(d: dict[str, Any], i: int) -> ContentElement:
         speaker=d.get("speaker"),
         meta=meta,
     )
-

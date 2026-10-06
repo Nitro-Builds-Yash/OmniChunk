@@ -55,7 +55,7 @@ def test_the_last_retryable_response_is_returned_not_raised(monkeypatch):
 
     resp = http.request_with_retry("GET", "https://example.test/v1", attempts=2)
 
-    assert resp.status_code == 503     # caller keeps its own raise_for_status
+    assert resp.status_code == 503  # caller keeps its own raise_for_status
     assert len(calls) == 2
 
 
@@ -97,18 +97,22 @@ def test_jitter_never_exceeds_the_computed_delay(monkeypatch, _no_sleep):
         return httpx.Response(500) if len(calls) < 3 else httpx.Response(200)
 
     _install(monkeypatch, handler)
-    http.request_with_retry("GET", "https://example.test/v1",
-                            attempts=3, base_delay=1.0, max_delay=4.0)
+    http.request_with_retry(
+        "GET", "https://example.test/v1", attempts=3, base_delay=1.0, max_delay=4.0
+    )
 
     assert all(0 <= w <= 4.0 for w in _no_sleep)
 
 
-@pytest.mark.parametrize(("header", "expected"), [
-    ("2", 2.0),
-    ("0", 0.0),
-    ("not-a-date", None),
-    (None, None),
-])
+@pytest.mark.parametrize(
+    ("header", "expected"),
+    [
+        ("2", 2.0),
+        ("0", 0.0),
+        ("not-a-date", None),
+        (None, None),
+    ],
+)
 def test_retry_after_parsing(header, expected):
     headers = {"retry-after": header} if header is not None else {}
     resp = httpx.Response(429, headers=headers)

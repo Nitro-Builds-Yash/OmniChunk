@@ -44,7 +44,7 @@ _SCHEMA = {
                     "summary": {
                         "type": "string",
                         "description": "1-2 sentences situating this chunk in the "
-                                       "document, so it reads correctly on its own",
+                        "document, so it reads correctly on its own",
                     },
                     "entities": {"type": "array", "items": {"type": "string"}},
                 },
@@ -72,9 +72,11 @@ def _fence(text: str) -> str:
     what the model was told. A zero-width space inside the delimiter keeps the
     text readable and stops the tag from closing early.
     """
-    return (text.replace("</document>", "<\u200b/document>")
-                .replace("</chunk>", "<\u200b/chunk>")
-                .replace("<chunk", "<\u200bchunk"))
+    return (
+        text.replace("</document>", "<\u200b/document>")
+        .replace("</chunk>", "<\u200b/chunk>")
+        .replace("<chunk", "<\u200bchunk")
+    )
 
 
 def _prompt(doc: str, batch: list[KnowledgeUnit]) -> str:
@@ -94,8 +96,13 @@ def _prompt(doc: str, batch: list[KnowledgeUnit]) -> str:
     return "\n".join(parts)
 
 
-def _apply(units_by_id: dict[str, KnowledgeUnit], payload: str,
-           call_cost: float, calls_in_batch: int, model: str) -> int:
+def _apply(
+    units_by_id: dict[str, KnowledgeUnit],
+    payload: str,
+    call_cost: float,
+    calls_in_batch: int,
+    model: str,
+) -> int:
     """Attach returned summaries to their chunks. Cost is shared across the
     batch so each unit's receipt reflects what it actually consumed.
 
@@ -122,8 +129,13 @@ def _apply(units_by_id: dict[str, KnowledgeUnit], payload: str,
     return applied
 
 
-def enrich(units: list[KnowledgeUnit], document_text: str,
-           progress=None, ledger: Ledger | None = None, use_llm: bool = True) -> dict:
+def enrich(
+    units: list[KnowledgeUnit],
+    document_text: str,
+    progress=None,
+    ledger: Ledger | None = None,
+    use_llm: bool = True,
+) -> dict:
     """Enrich flagged units in place. Returns totals for the job record.
 
     ``use_llm=False`` is the per-job UI override: it forces ``NoneProvider``
@@ -149,20 +161,20 @@ def enrich(units: list[KnowledgeUnit], document_text: str,
         return totals
 
     doc = document_text[:max_doc_chars]
-    batches = [flagged[i:i + batch_size] for i in range(0, len(flagged), batch_size)]
+    batches = [flagged[i : i + batch_size] for i in range(0, len(flagged), batch_size)]
     by_id = {u.id: u for u in flagged}
     done = 0
     failed = 0
 
     def run(batch: list[KnowledgeUnit]) -> int:
-        text, usage = provider.complete_json(
-            _prompt(doc, batch), system=_SYSTEM, schema=_SCHEMA)
+        text, usage = provider.complete_json(_prompt(doc, batch), system=_SYSTEM, schema=_SCHEMA)
         if not text:
             ledger.record_failure(usage.get("model", provider.model))
-            return -1     # distinguishes a failed call from one that applied nothing
+            return -1  # distinguishes a failed call from one that applied nothing
         cost = ledger.record(
             usage.get("model", provider.model),
-            usage.get("in_tokens", 0), usage.get("out_tokens", 0),
+            usage.get("in_tokens", 0),
+            usage.get("out_tokens", 0),
             usage.get("cached_tokens", 0),
         )
         for u in batch:
@@ -196,7 +208,10 @@ def enrich(units: list[KnowledgeUnit], document_text: str,
         log.warning("%s", totals["warning"])
     log.info(
         "enrichment: %d/%d units via %s in %d call(s) — %d call(s) saved by batching",
-        totals["enriched"], len(flagged), provider.model,
-        totals["api_calls"], totals["calls_saved_by_batching"],
+        totals["enriched"],
+        len(flagged),
+        provider.model,
+        totals["api_calls"],
+        totals["calls_saved_by_batching"],
     )
     return totals

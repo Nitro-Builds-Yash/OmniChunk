@@ -46,11 +46,19 @@ _LONE_CLOSE = re.compile(r"\s*】")
 
 #: Ligatures a PDF encodes as single glyphs; they break substring search and
 #: tokenise badly ("ﬁnance" is not "finance" to a matcher).
-_LIGATURES = str.maketrans({
-    "ﬁ": "fi", "ﬂ": "fl", "ﬀ": "ff", "ﬃ": "ffi", "ﬄ": "ffl", "ﬅ": "ft", "ﬆ": "st",
-})
+_LIGATURES = str.maketrans(
+    {
+        "ﬁ": "fi",
+        "ﬂ": "fl",
+        "ﬀ": "ff",
+        "ﬃ": "ffi",
+        "ﬄ": "ffl",
+        "ﬅ": "ft",
+        "ﬆ": "st",
+    }
+)
 
-_INVISIBLE = re.compile(r"[­​‌‍⁠﻿]")   # soft hyphen, ZW*, BOM
+_INVISIBLE = re.compile(r"[­​‌‍⁠﻿]")  # soft hyphen, ZW*, BOM
 _NBSP = re.compile(r"[   ]")
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
@@ -61,7 +69,7 @@ _HYPHEN_BREAK = re.compile(r"(\w)[-‐‑]\s*\n\s*([a-z])")
 
 _SPACE_BEFORE_PUNCT = re.compile(r"[ \t]+([,.;:!?%)\]])")
 _SPACE_AFTER_OPEN = re.compile(r"([(\[])[ \t]+")
-_DOT_LEADERS = re.compile(r"\.{4,}")           # table-of-contents leaders
+_DOT_LEADERS = re.compile(r"\.{4,}")  # table-of-contents leaders
 _TRAILING_BULLET = re.compile(r"[ \t]*[·•▪●○◦]+[ \t]*$", re.M)
 _MULTI_SPACE = re.compile(r"[ \t]{2,}")
 _MULTI_BLANK = re.compile(r"\n{3,}")
@@ -97,8 +105,7 @@ class CleaningReport:
     def summary(self) -> str:
         if not self.total:
             return "no extraction artifacts found"
-        top = ", ".join(f"{n} {rule.replace('_', ' ')}"
-                        for rule, n in self.rules.most_common(3))
+        top = ", ".join(f"{n} {rule.replace('_', ' ')}" for rule, n in self.rules.most_common(3))
         return f"{self.total} fixes across {self.elements_changed} elements — {top}"
 
 
@@ -221,11 +228,7 @@ def clean_elements(elements) -> CleaningReport:
             if cell_counts:
                 el.meta["grid"] = new_grid
                 if el.meta.get("header_row"):
-                    el.meta["header_row"] = [
-                        clean_cell(h)[0] for h in el.meta["header_row"]
-                    ]
+                    el.meta["header_row"] = [clean_cell(h)[0] for h in el.meta["header_row"]]
                 el.text = _table_markdown(new_grid)
                 report.merge(cell_counts)
     return report
-
-

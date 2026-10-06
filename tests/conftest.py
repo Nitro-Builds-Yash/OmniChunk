@@ -27,9 +27,16 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures"
 #: Everything ``config.Settings`` reads. Cleared so a developer's shell or
 #: ``.env`` cannot change what the suite tests.
 _ENV_VARS = (
-    "CLEAVE_LLM", "GEMINI_API_KEY", "GEMINI_MODEL", "CLEAVE_OLLAMA_URL",
-    "CLEAVE_OLLAMA_MODEL", "CLEAVE_LLM_TIMEOUT", "CLEAVE_ENRICH_BATCH",
-    "CLEAVE_ENRICH_DOC_CHARS", "CLEAVE_STT_URL", "CLEAVE_LOG_LEVEL",
+    "CLEAVE_LLM",
+    "GEMINI_API_KEY",
+    "GEMINI_MODEL",
+    "CLEAVE_OLLAMA_URL",
+    "CLEAVE_OLLAMA_MODEL",
+    "CLEAVE_LLM_TIMEOUT",
+    "CLEAVE_ENRICH_BATCH",
+    "CLEAVE_ENRICH_DOC_CHARS",
+    "CLEAVE_STT_URL",
+    "CLEAVE_LOG_LEVEL",
     "CLEAVE_OFFLINE_FALLBACK",
 )
 
