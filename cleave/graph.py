@@ -56,6 +56,14 @@ class ContextGraph:
             self.g.add_node(e.id, kind=e.kind)
         self._build()
 
+    @property
+    def node_count(self) -> int:
+        return self.g.number_of_nodes()
+
+    @property
+    def edge_count(self) -> int:
+        return self.g.number_of_edges()
+
     # ───────── construction ─────────
 
     def _build(self) -> None:
