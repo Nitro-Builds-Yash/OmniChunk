@@ -335,8 +335,11 @@ def count_tokens(text: str) -> int:
 
 
 def sha256_of(path: str) -> str:
+    p = Path(path)
+    if not p.is_file():
+        return hashlib.sha256(str(path).encode("utf-8")).hexdigest()
     h = hashlib.sha256()
-    with Path(path).open("rb") as f:
+    with p.open("rb") as f:
         for block in iter(lambda: f.read(1 << 20), b""):
             h.update(block)
     return h.hexdigest()

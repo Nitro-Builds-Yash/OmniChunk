@@ -314,7 +314,10 @@ def fusion_confidence(
     union = speech_ents | visual_ents
     entity_score = len(speech_ents & visual_ents) / max(len(union), 1) if union else 0.5
 
-    score = round(0.6 * temporal_score + 0.4 * entity_score, 4)
+    if speech_ents and visual_ents and not (speech_ents & visual_ents):
+        score = round(0.4 * temporal_score, 4)
+    else:
+        score = round(0.5 * temporal_score + 0.5 * entity_score, 4)
     if score > 0.7:
         label = "strong"
     elif score > 0.4:
