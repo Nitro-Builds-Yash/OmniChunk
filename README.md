@@ -84,11 +84,49 @@ docker compose up                    # Cleave alone
 docker compose --profile infra up    # + Qdrant, MinIO, Redpanda, Neo4j
 ```
 
+## Make it fast (optional Rust core)
+
+`rust/cleave_core` is a PyO3 extension with the text hot paths: tokenization,
+an inverted-index BM25 with parallel batch queries, token counting, the
+fixed-size baseline splitter, and MinHash/LSH near-duplicate detection.
+
+```bash
+uv run maturin develop -r -m rust/cleave_core/Cargo.toml   # needs a Rust toolchain
+curl -s localhost:8321/health | jq .text_engine              # {"backend": "rust", ...}
+```
+
+It is optional and **result-identical**: every function has a pure-Python twin
+in `cleave/_accel.py`, and parity tests fuzz both with Unicode-heavy input to
+check the same tokens, bit-identical BM25 scores and the same MinHash groups.
+`CLEAVE_NO_RUST=1` forces the Python paths. (A plain `uv sync` removes the
+extension because it is not in the lockfile; re-run `maturin develop` after.)
+
+| 20,000 docs × ~400 words, 2 cores | Python | Rust | |
+|---|---|---|---|
+| BM25 score, 1 query | 0.128 s | 0.001 s | **137×** |
+| BM25, 200 queries top-10 | 18.7 s | 0.39 s | **48×** |
+| near-duplicate groups (2,400 docs) | 64.4 s | 0.59 s | **109×** |
+| approx token count | 2.37 s | 0.32 s | **7×** |
+| BM25 index build | 7.72 s | 1.54 s | **5×** |
+| tokenize corpus | 6.18 s | 1.90 s | **3×** |
+
+`uv run python benchmarks/bench_text_engine.py` reproduces it; the parallel
+paths scale with cores.
+
+**Near-duplicate collapsing** is the feature this makes practical. After
+chunking, units whose 5-word-shingle Jaccard similarity is ≥ 0.85 are tagged
+(`metadata.duplicate_of` / `metadata.duplicates`): repeated boilerplate, a page
+duplicated across PDFs, the same attachment uploaded twice. Nothing is deleted,
+since every copy keeps its provenance, but search returns each text once
+instead of filling the result list with copies. The job profile reports
+`totals.near_duplicates`.
+
 ## Use it as a library or CLI
 
 ```python
 from cleave import chunk_file
-units = chunk_file("report.pdf")           # deterministic, no LLM by default
+
+units = chunk_file("report.pdf")  # deterministic, no LLM by default
 print(units[0].embed_text())
 ```
 
@@ -185,6 +223,9 @@ no number in the UI is hand-written.
 | `cleave/eval_retrieval.py` | Retrieval recall/MRR benchmark vs the fixed-size baseline |
 | `cleave/web/search.py` | Hybrid BM25 + dense retrieval, RRF, re-rank, graph expansion |
 | `cleave/web/security.py` | API-key auth and job-submission rate limiting |
+| `cleave/_accel.py` | Text hot paths: Rust (`cleave_core`) when built, identical pure-Python fallback |
+| `rust/cleave_core/` | PyO3 extension: tokenizer, BM25, token counting, MinHash near-duplicates |
+| `benchmarks/` | Retrieval QA set and the Python-vs-Rust speed benchmark |
 | `cleave/storage/`, `cleave/events/` | Adapters: Qdrant is synced after each job; MinIO, Neo4j and Redpanda are **experimental** and not called by the pipeline yet |
 | `cleave/ingest_document.py` | Docling → content elements |
 | `cleave/graph.py` | Context graph: captions, references, hierarchy, evidence |

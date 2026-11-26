@@ -20,3 +20,6 @@ build/
 ngrok.yml
 .claude/
 data/jobs.sqlite3*
+
+# Rust build output
+rust/cleave_core/target/

@@ -1,0 +1,23 @@
+[package]
+name = "cleave_core"
+version = "0.1.0"
+edition = "2021"
+description = "Rust hot paths for Cleave: tokenization, BM25, token counting, near-duplicate detection"
+license = "MIT"
+publish = false
+
+[lib]
+name = "cleave_core"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pyo3 = { version = "0.23", features = ["extension-module", "abi3-py312"], optional = true }
+rayon = "1.10"
+
+[features]
+default = ["python"]
+python = ["dep:pyo3"]
+
+[profile.release]
+lto = "fat"
+codegen-units = 1

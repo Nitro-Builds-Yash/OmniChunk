@@ -25,13 +25,12 @@ from __future__ import annotations
 
 import json
 import logging
-import math
-import re
 import threading
-from collections import Counter, OrderedDict
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Any
 
+from .. import _accel
 from .jobs import job_artifact
 
 log = logging.getLogger(__name__)
@@ -39,7 +38,6 @@ log = logging.getLogger(__name__)
 TOP_K = 5
 RRF_K = 60
 _CACHE_MAX = 16
-_TOKEN = re.compile(r"[a-z0-9]+(?:[-_.][a-z0-9]+)*")
 
 #: Edges worth following at query time: the ones that carry meaning a hit
 #: needs (its caption, its schema, its section), not mere reading order.
@@ -57,47 +55,15 @@ EXPAND_TYPES = {
 }
 
 
-def tokenize(text: str) -> list[str]:
-    """Lower-cased word tokens; keeps ``SO-10042`` and ``3.2.1`` whole, plus their parts."""
-    out: list[str] = []
-    for tok in _TOKEN.findall(text.lower()):
-        out.append(tok)
-        if any(c in tok for c in "-_."):
-            out.extend(p for p in re.split(r"[-_.]", tok) if p)
-    return out
-
-
-class BM25:
-    """Okapi BM25 (k1=1.5, b=0.75) over pre-tokenised documents."""
-
-    def __init__(self, docs: list[list[str]], k1: float = 1.5, b: float = 0.75) -> None:
-        self.k1, self.b = k1, b
-        self.tf = [Counter(d) for d in docs]
-        self.len = [len(d) for d in docs]
-        self.avg = (sum(self.len) / len(docs)) if docs else 0.0
-        df: Counter[str] = Counter()
-        for d in docs:
-            df.update(set(d))
-        n = len(docs)
-        self.idf = {t: math.log(1 + (n - f + 0.5) / (f + 0.5)) for t, f in df.items()}
-
-    def scores(self, query: list[str]) -> list[float]:
-        out = []
-        for tf, dl in zip(self.tf, self.len):
-            s = 0.0
-            norm = self.k1 * (1 - self.b + self.b * dl / (self.avg or 1.0))
-            for t in query:
-                f = tf.get(t)
-                if f:
-                    s += self.idf[t] * f * (self.k1 + 1) / (f + norm)
-            out.append(s)
-        return out
+#: Re-exported: the implementations live in ``cleave._accel`` (Rust when built).
+tokenize = _accel.tokenize
+BM25 = _accel.PyBM25
 
 
 @dataclass(slots=True)
 class _Index:
     units: list[dict]
-    bm25: BM25
+    bm25: _accel.Scorer
     vectors: Any = None  # numpy matrix, lazily built
     by_id: dict[str, dict] = field(default_factory=dict)
 
@@ -146,7 +112,7 @@ def _index(job_id: str) -> _Index | None:
     units = json.loads(path.read_text())
     idx = _Index(
         units=units,
-        bm25=BM25([tokenize(u.get("embed_text") or u.get("content", "")) for u in units]),
+        bm25=_accel.bm25_from_texts([u.get("embed_text") or u.get("content", "") for u in units]),
         by_id={u["id"]: u for u in units},
     )
     with _LOCK:
@@ -201,12 +167,8 @@ def search_jobs(job_ids: list[str], query: str, k: int = TOP_K) -> list[Hit]:
     if len(indexes) == 1:
         lex = indexes[0][1].bm25.scores(q_tokens)  # cached per-job index
     elif indexes:
-        lex = BM25(
-            [
-                tokenize(u.get("embed_text") or u.get("content", ""))
-                for _, ix in indexes
-                for u in ix.units
-            ]
+        lex = _accel.bm25_from_texts(
+            [u.get("embed_text") or u.get("content", "") for _, ix in indexes for u in ix.units]
         ).scores(q_tokens)
     for job_id, idx in indexes:
         pool.extend((job_id, u) for u in idx.units)
@@ -230,6 +192,7 @@ def search_jobs(job_ids: list[str], query: str, k: int = TOP_K) -> list[Hit]:
             candidates.append(Hit(rrf, job_id, u, signals))
 
     candidates.sort(key=lambda h: h.score, reverse=True)
+    candidates = _collapse_duplicates(candidates)
     head = candidates[: max(k * 4, 20)]
 
     from ..semantic import rerank  # noqa: PLC0415
@@ -245,6 +208,21 @@ def search_jobs(job_ids: list[str], query: str, k: int = TOP_K) -> list[Hit]:
     for h in hits:
         h.related = _expand(h)
     return hits
+
+
+def _collapse_duplicates(ranked: list[Hit]) -> list[Hit]:
+    """Keep the best-ranked member of each near-duplicate group (see
+    ``pipeline.mark_near_duplicates``), so one paragraph pasted into five
+    documents does not fill all five result slots."""
+    seen: set[tuple[str, str]] = set()
+    out = []
+    for h in ranked:
+        key = (h.job_id, h.unit.get("metadata", {}).get("duplicate_of") or h.unit["id"])
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(h)
+    return out
 
 
 def _expand(hit: Hit, limit: int = 3) -> list[dict]:

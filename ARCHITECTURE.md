@@ -506,3 +506,33 @@ every port to loopback and has no default passwords.
 unit-tested but the pipeline does not call them yet. Qdrant sync is live: points
 use stable `uuid5(source_uri#unit_id)` ids, so re-indexing upserts instead of
 duplicating.
+
+
+## Rust core (`rust/cleave_core`, `cleave/_accel.py`)
+
+**Why these paths.** Profiling a 20k-unit corpus put the time in tokenization,
+BM25 build/scoring, and token counting. They are pure string and number work
+with no Python objects needed in the inner loop, which is the case where a
+native extension pays off. Docling parsing (already native) and model inference
+(torch) were left alone.
+
+**Design rules.**
+1. *Optional.* `cleave._accel` imports `cleave_core` if present; otherwise the
+   pure-Python implementations run. Nothing else in Cleave imports the
+   extension directly.
+2. *Result-identical.* The Rust tokenizer reproduces Python's `str.lower()`
+   plus the token regex, including Unicode case folding (e.g. KELVIN SIGN →
+   `k`) and Python's definition of `\s` (Unicode White_Space plus U+001C–001F).
+   BM25 adds contributions per query token in query order in both versions,
+   so scores match bit for bit and rankings, including ties, are the same.
+   MinHash uses FNV-1a shingle hashes and splitmix64 permutations, which are
+   simple to implement identically in both languages.
+3. *GIL released.* Every heavy call runs inside `py.allow_threads`, and batch
+   operations use rayon, so FastAPI's threadpool and the job workers run
+   concurrently with searches.
+4. *abi3.* One wheel per platform covers every CPython ≥ 3.12.
+
+**Near-duplicates.** 128 permutations, 16 bands × 8 rows (candidate threshold
+≈ 0.71), candidates verified against the signature-estimated Jaccard
+(≥ 0.85 in the pipeline), merged with union-find. Units under 30 tokens are
+never compared: short headings and captions repeat legitimately.
