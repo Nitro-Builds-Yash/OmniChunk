@@ -6,7 +6,7 @@ import json
 import logging
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from . import jobs, uploads
@@ -36,8 +36,44 @@ async def create_job(
         use_llm=use_llm.lower() not in ("false", "0", "off", "no"),
     )
     jobs.JOBS[job_id] = job
-    background.add_task(run_job, job_id, dest_paths)
+    jobs.save(job)
+    background.add_task(jobs.submit, job, run_job, dest_paths)
     return RedirectResponse(f"/jobs/{job_id}", status_code=303)
+
+
+@router.post("/api/jobs/{job_id}/retry")
+def retry_job(job_id: str, background: BackgroundTasks):
+    """Re-run a failed (or restart-interrupted) job from its stored inputs."""
+    from ..pipeline import run_job  # noqa: PLC0415
+
+    job = jobs.require_job(job_id)
+    if job.status != "error":
+        raise HTTPException(409, f"only failed jobs can be retried (this one is {job.status})")
+    inputs = jobs.reset_for_retry(job)
+    background.add_task(jobs.submit, job, run_job, inputs)
+    return {"id": job.id, "status": job.status, "files": [p.name for p in inputs]}
+
+
+@router.get("/api/search")
+def api_search(q: str, jobs_: str | None = Query(None, alias="jobs"), k: int = 5):
+    """Hybrid search (BM25 + vectors, graph-expanded) over one or more jobs.
+
+    ``jobs`` is a comma-separated list of job ids; omitted, every finished job
+    is searched.
+    """
+    from . import search  # noqa: PLC0415
+
+    if not q.strip():
+        raise HTTPException(400, "nothing to search")
+    ids = (
+        [j for j in jobs_.split(",") if j]
+        if jobs_
+        else [j.id for j in jobs.JOBS.values() if j.status == "done"]
+    )
+    for j in ids:
+        jobs.require_job(j)
+    hits = search.search_jobs(ids, q, k=max(1, min(k, 50)))
+    return {"query": q, "jobs": ids, "hits": [h.to_dict() for h in hits]}
 
 
 @router.get("/api/jobs/{job_id}/units")
@@ -170,3 +206,9 @@ def health():
 
     p = get_provider()
     return {"ok": True, "jobs": len(jobs.JOBS), "llm": p.name, "model": p.model}
+
+
+@router.get("/health/live", include_in_schema=False)
+def live():
+    """Liveness without touching providers — for container health checks."""
+    return {"ok": True}

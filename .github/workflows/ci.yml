@@ -18,6 +18,15 @@ jobs:
           enable-cache: true
       - run: uv python install 3.12
       - run: uv sync --all-groups
+      - name: cache models (Docling, RapidOCR, MiniLM, tiktoken)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/huggingface
+            ~/.cache/docling
+            ~/.cache/tiktoken
+            .venv/lib/python3.12/site-packages/rapidocr/models
+          key: models-${{ hashFiles('uv.lock') }}
       - name: lint
         run: uv run ruff check .
       - name: typecheck
@@ -26,3 +35,11 @@ jobs:
         # Docling downloads CV models on the first PDF, so this job is minutes,
         # not seconds. Mocking the parse would weaken the suite's whole point.
         run: uv run pytest -q --cov=cleave --cov-report=term-missing
+        env:
+          TIKTOKEN_CACHE_DIR: /home/runner/.cache/tiktoken
+      - name: retrieval benchmark
+        run: uv run cleave eval-retrieval benchmarks/qa_fixtures.jsonl -o retrieval_scorecard.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: retrieval-scorecard
+          path: retrieval_scorecard.json

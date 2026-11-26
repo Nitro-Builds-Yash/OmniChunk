@@ -148,6 +148,8 @@ def test_offline_fallback_allows_audio_ingestion_when_stt_is_down(monkeypatch, t
 
 def test_offline_fallback_allows_video_ingestion_when_workers_are_down(monkeypatch, tmp_path):
     monkeypatch.setenv("CLEAVE_OFFLINE_FALLBACK", "1")
+    # Synthetic video is opt-in now; it used to be on by default in production.
+    monkeypatch.setenv("CLEAVE_ALLOW_SYNTHETIC_FALLBACK", "1")
     from cleave import config
 
     config.reload()

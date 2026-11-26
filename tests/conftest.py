@@ -21,6 +21,7 @@ import pytest
 from cleave import config, http
 from cleave.web import jobs as jobs_mod
 from cleave.web import search as search_mod
+from cleave.web import security as security_mod
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -38,6 +39,13 @@ _ENV_VARS = (
     "CLEAVE_STT_URL",
     "CLEAVE_LOG_LEVEL",
     "CLEAVE_OFFLINE_FALLBACK",
+    "CLEAVE_ALLOW_SYNTHETIC_FALLBACK",
+    "CLEAVE_EVALUATION_MODE",
+    "CLEAVE_API_KEY",
+    "CLEAVE_RATE_LIMIT_PER_MIN",
+    "CLEAVE_MAX_CONCURRENT_JOBS",
+    "CLEAVE_EMBED_MODEL",
+    "CLEAVE_RERANKER_MODEL",
 )
 
 
@@ -53,6 +61,9 @@ def _isolate_env(monkeypatch: pytest.MonkeyPatch):
         monkeypatch.delenv(var, raising=False)
     monkeypatch.setenv("CLEAVE_LLM", "none")
     monkeypatch.setenv("CLEAVE_OFFLINE_FALLBACK", "0")
+    # Suites submit many jobs from one client; the limiter has its own tests.
+    monkeypatch.setenv("CLEAVE_RATE_LIMIT_PER_MIN", "0")
+    security_mod.submissions.clear()
     # Do not read the repo's real .env: it may hold a billable key.
     monkeypatch.setattr(config, "_DOTENV_LOADED", True)
     config.reload()

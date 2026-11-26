@@ -1,16 +1,23 @@
 """The job registry: what a job is, where it lives on disk, and how it comes back.
 
-Deliberately small — a module-level dict and a directory per job. Jobs run in
-seconds and their artifacts land on disk as JSON; nothing here needs a queue or
-a database.
+A module-level dict is the hot cache; a small SQLite file beside the job
+directories is the record. Before it existed, a restart silently lost every
+queued or running job, and nothing bounded how many ran at once — ten uploads
+meant ten Docling parses fighting for the same cores. Now job state survives a
+restart (interrupted jobs come back as retryable errors, never as fake
+"running" ones), and ``submit`` admits at most ``CLEAVE_MAX_CONCURRENT_JOBS``
+into the pipeline while the rest wait as ``queued``.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import sqlite3
+import threading
 import time
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from fastapi import HTTPException
@@ -83,7 +90,141 @@ def display_name(names: list[str]) -> str:
     return f"{len(names)} files ({shown}{more})"
 
 
+# ───────── persistence ─────────
+
+_DB_LOCK = threading.Lock()
+_COLUMNS = (
+    "id",
+    "filename",
+    "filenames",
+    "status",
+    "progress",
+    "message",
+    "error",
+    "created",
+    "elapsed_s",
+    "use_llm",
+)
+
+
+def _db_path() -> Path:
+    # Resolved per call: tests repoint DATA at a temp dir.
+    return DATA.parent / "jobs.sqlite3"
+
+
+def _connect() -> sqlite3.Connection:
+    DATA.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(_db_path(), timeout=5.0)
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, filename TEXT, filenames TEXT,"
+        " status TEXT, progress INTEGER, message TEXT, error TEXT, created REAL,"
+        " elapsed_s REAL, use_llm INTEGER)"
+    )
+    return conn
+
+
+def save(job: Job) -> None:
+    """Upsert one job's state. Best effort: a read-only disk must not kill a job."""
+    row = asdict(job)
+    row["filenames"] = json.dumps(row["filenames"])
+    row["use_llm"] = int(row["use_llm"])
+    try:
+        with _DB_LOCK, _connect() as conn:
+            conn.execute(
+                f"INSERT OR REPLACE INTO jobs ({', '.join(_COLUMNS)}) "  # noqa: S608 — fixed column list
+                f"VALUES ({', '.join('?' * len(_COLUMNS))})",
+                [row[c] for c in _COLUMNS],
+            )
+    except sqlite3.Error as exc:
+        log.warning("could not persist job %s: %s", job.id, exc)
+
+
+def _load_saved() -> list[Job]:
+    if not _db_path().exists():
+        return []
+    try:
+        with _DB_LOCK, _connect() as conn:
+            rows = conn.execute(f"SELECT {', '.join(_COLUMNS)} FROM jobs").fetchall()  # noqa: S608
+    except sqlite3.Error as exc:
+        log.warning("job registry unreadable (%s); falling back to artifacts", exc)
+        return []
+    out = []
+    for r in rows:
+        d = dict(zip(_COLUMNS, r))
+        d["filenames"] = json.loads(d["filenames"] or "[]")
+        d["use_llm"] = bool(d["use_llm"])
+        out.append(Job(**d))
+    return out
+
+
+# ───────── bounded execution ─────────
+
+_slots_lock = threading.Lock()
+_slots: threading.BoundedSemaphore | None = None
+_slots_size = 0
+
+
+def _job_slots() -> threading.BoundedSemaphore:
+    global _slots, _slots_size
+    from ..config import settings  # noqa: PLC0415
+
+    n = settings().max_concurrent_jobs
+    with _slots_lock:
+        if _slots is None or _slots_size != n:
+            _slots, _slots_size = threading.BoundedSemaphore(n), n
+        return _slots
+
+
+def submit(job: Job, run: Callable[[str, list[Path]], None], paths: list[Path]) -> None:
+    """Run ``run(job.id, paths)`` once a concurrency slot is free.
+
+    Blocking — called from FastAPI's background threadpool. The job stays
+    ``queued`` (and says so) until admitted, and its final state is persisted
+    whatever the pipeline did.
+    """
+    save(job)
+    slots = _job_slots()
+    if not slots.acquire(blocking=False):
+        job.message = "waiting for a free worker…"
+        save(job)
+        slots.acquire()
+    try:
+        run(job.id, paths)
+    finally:
+        slots.release()
+        save(job)
+
+
+def reset_for_retry(job: Job) -> list[Path]:
+    """Put a failed job back to ``queued`` and return its stored inputs."""
+    inputs = sorted(p for p in (job.dir / "input").glob("*") if p.is_file())
+    if not inputs:
+        raise HTTPException(409, "this job's input files are gone; upload again")
+    job.status, job.progress, job.message, job.error = "queued", 0, "queued (retry)", None
+    job.created = time.time()
+    save(job)
+    return inputs
+
+
 def rehydrate_jobs() -> None:
+    """Restore the registry on startup: SQLite first, then legacy artifacts.
+
+    A job that was queued or running when the process died is restored as an
+    error that says so and can be retried — showing it as running would be a
+    lie, and dropping it (the old behaviour) lost the upload's existence.
+    """
+    for job in _load_saved():
+        if job.id in JOBS:
+            continue
+        if not job.is_terminal:
+            job.status, job.message = "error", "interrupted"
+            job.error = "the server restarted while this job was in progress — retry it"
+            save(job)
+        JOBS[job.id] = job
+    _rehydrate_from_artifacts()
+
+
+def _rehydrate_from_artifacts() -> None:
     """Re-register finished jobs from disk on startup.
 
     The artifacts outlive the process, so a restart should not turn a completed
@@ -115,11 +256,13 @@ def rehydrate_jobs() -> None:
             created=profile.stat().st_mtime,
             elapsed_s=meta.get("totals", {}).get("wall_clock_s", 0.0),
         )
+        save(JOBS[job_id])
     if JOBS:
-        log.info("restored %d completed job(s) from disk", len(JOBS))
+        log.info("restored %d job(s) from disk", len(JOBS))
 
 
 def set_progress(job: Job, progress: int, message: str) -> None:
     # progress never goes backwards; terminal states are set only by the worker
     job.progress = max(job.progress, min(99, progress))
     job.message = message
+    save(job)

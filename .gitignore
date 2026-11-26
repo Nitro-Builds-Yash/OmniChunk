@@ -15,3 +15,8 @@ htmlcov/
 dist/
 build/
 *.egg-info/
+
+# Local secrets and per-developer tool settings — never commit these.
+ngrok.yml
+.claude/
+data/jobs.sqlite3*

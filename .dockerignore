@@ -1,0 +1,9 @@
+.venv
+.git
+data
+tests
+**/__pycache__
+.env
+ngrok.yml
+.claude
+*.log

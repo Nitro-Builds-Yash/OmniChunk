@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import os
+import uuid
 
 from ..http import client
 from ..models import KnowledgeUnit
@@ -55,16 +56,15 @@ class VectorDB:
 
         # If embeddings aren't supplied, attempt to compute via sentence_transformers
         if embeddings is None:
-            try:
-                from sentence_transformers import SentenceTransformer
+            # The one shared embedder (cleave.semantic) — this used to load a
+            # second private copy of the same model.
+            from ..semantic import embed
 
-                model = SentenceTransformer("all-MiniLM-L6-v2")
-                texts = [u.embed_text() for u in units]
-                embs = model.encode(texts, convert_to_numpy=True)
-                embeddings = [e.tolist() for e in embs]
-            except Exception as exc:
-                log.debug("Could not generate embeddings locally: %s", exc)
+            embs = embed([u.embed_text() for u in units])
+            if embs is None:
+                log.debug("Could not generate embeddings locally")
                 return 0
+            embeddings = [list(map(float, e)) for e in embs]
 
         dim = len(embeddings[0]) if embeddings else 384
         self._ensure_collection(dim=dim)
@@ -73,7 +73,15 @@ class VectorDB:
         for _i, (unit, vec) in enumerate(zip(units, embeddings)):
             points.append(
                 {
-                    "id": abs(hash(unit.id)) % (2**63),
+                    # Stable across processes (``hash()`` is salted per run, so
+                    # re-indexing used to duplicate every point) and unique
+                    # across jobs, whose unit ids all start at f0_ku_0000.
+                    "id": str(
+                        uuid.uuid5(
+                            uuid.NAMESPACE_URL,
+                            f"{unit.provenance.source_uri if unit.provenance else ''}#{unit.id}",
+                        )
+                    ),
                     "vector": vec,
                     "payload": {
                         "unit_id": unit.id,

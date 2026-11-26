@@ -1,0 +1,5 @@
+# Copy to ngrok.yml (git-ignored) and fill in your own token, or set
+# NGROK_AUTHTOKEN in the environment instead. Never commit a real token.
+version: "3"
+agent:
+  authtoken: ${NGROK_AUTHTOKEN}

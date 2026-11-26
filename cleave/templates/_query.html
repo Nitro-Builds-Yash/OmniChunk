@@ -1,8 +1,8 @@
 <div id="query-results" class="mt-4 space-y-3">
   {% if hits %}
   <div class="text-xs text-[color:var(--text-muted)] flex items-center justify-between pb-1 border-b border-[color:var(--border-subtle)]">
-    <span>Top {{ hits | length }} Semantic Matches for “{{ q }}”</span>
-    <span class="font-mono text-[11px]">Ranked via embed_text()</span>
+    <span>Top {{ hits | length }} Matches for “{{ q }}”</span>
+    <span class="font-mono text-[11px]">Hybrid: BM25 + vectors (RRF)</span>
   </div>
   <div class="space-y-2">
     {% for score, u in hits %}
@@ -16,7 +16,7 @@
           {% endif %}
         </div>
         <div class="flex items-center gap-2 font-mono text-[11px] text-[color:var(--text-muted)]">
-          <span>{{ (score * 100) | round | int }}% match</span>
+          <span>{{ (score * 100) | round | int }}% of top</span>
         </div>
       </div>
       <p class="text-xs text-[color:var(--text-secondary)] line-clamp-2 leading-relaxed">{{ u.content[:240] }}</p>

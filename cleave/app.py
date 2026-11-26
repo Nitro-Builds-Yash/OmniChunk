@@ -25,6 +25,7 @@ from .pipeline import run_job
 from .web.jobs import DATA, JOBS, Job, rehydrate_jobs
 from .web.routes_api import router as api_router
 from .web.routes_pages import router as pages_router
+from .web.security import SecurityMiddleware
 from .web.templating import ROOT, STATIC_DIR
 
 log = logging.getLogger(__name__)
@@ -44,6 +45,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="Cleave", docs_url="/docs", lifespan=lifespan)
+app.add_middleware(SecurityMiddleware)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 app.include_router(pages_router)
 app.include_router(api_router)
@@ -58,4 +60,4 @@ if __name__ == "__main__":
     import uvicorn
 
     configure_logging()
-    uvicorn.run(app, host="127.0.0.1", port=8321, reload=False)
+    uvicorn.run(app, host="127.0.0.1", port=8321, reload=False)  # `cleave serve` for options

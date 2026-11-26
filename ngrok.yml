@@ -1,8 +1,0 @@
-version: 3
-agent:
-  authtoken: 3ACmVoldN0XsN3AO9TSe1RV1ER0_hkuXUPGWa1qi28qXP57p
-endpoints:
-  - name: cleave
-    url: https://isoglossal-toilful-hilaria.ngrok-free.dev
-    upstream:
-      url: http://localhost:8321
