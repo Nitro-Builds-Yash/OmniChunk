@@ -7,3 +7,4 @@ tests
 ngrok.yml
 .claude
 *.log
+rust/cleave_core/target

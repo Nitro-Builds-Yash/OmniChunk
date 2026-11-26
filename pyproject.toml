@@ -38,6 +38,7 @@ dev = [
     "pytest-cov>=5",
     "ruff>=0.6",
     "mypy>=1.11",
+    "maturin>=1.7,<2",   # builds the optional Rust extension in rust/cleave_core
 ]
 
 [tool.pytest.ini_options]
@@ -84,7 +85,8 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "PLC0415", "T20"]
+"benchmarks/*" = ["T20", "S311", "E731", "PLC0415"]
+"tests/*" = ["S101", "PLC0415", "T20", "S311"]  # seeded RNGs drive parity fuzzing
 "cleave/evaluate.py" = ["T20"]   # a CLI script legitimately prints its report
 "cleave/cli.py" = ["PLC0415"]
 "run_app_ngrok.py" = ["T20", "S104", "S105", "S603", "S607", "PLW1510", "PLC0415", "SIM105", "S110"]
@@ -118,5 +120,5 @@ warn_unused_ignores = true
 no_implicit_optional = true
 
 [[tool.mypy.overrides]]
-module = ["docling.*", "docling_core.*", "networkx.*", "sentence_transformers.*", "tiktoken.*"]
+module = ["cleave_core", "docling.*", "docling_core.*", "networkx.*", "sentence_transformers.*", "tiktoken.*"]
 ignore_missing_imports = true

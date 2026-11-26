@@ -202,10 +202,17 @@ def api_usage():
 
 @router.get("/health")
 def health():
+    from .._accel import backend_info  # noqa: PLC0415
     from ..llm import get_provider  # noqa: PLC0415
 
     p = get_provider()
-    return {"ok": True, "jobs": len(jobs.JOBS), "llm": p.name, "model": p.model}
+    return {
+        "ok": True,
+        "jobs": len(jobs.JOBS),
+        "llm": p.name,
+        "model": p.model,
+        "text_engine": backend_info(),
+    }
 
 
 @router.get("/health/live", include_in_schema=False)

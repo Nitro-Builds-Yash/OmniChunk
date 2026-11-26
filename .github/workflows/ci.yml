@@ -43,3 +43,33 @@ jobs:
         with:
           name: retrieval-scorecard
           path: retrieval_scorecard.json
+
+  rust:
+    runs-on: ubuntu-latest
+    env:
+      CLEAVE_LLM: none
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust/cleave_core
+      - name: fmt
+        run: cargo fmt --manifest-path rust/cleave_core/Cargo.toml --check
+      - name: clippy
+        run: cargo clippy --manifest-path rust/cleave_core/Cargo.toml --all-targets -- -D warnings
+      - name: cargo test
+        run: cargo test --manifest-path rust/cleave_core/Cargo.toml --no-default-features
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: uv sync --all-groups
+      - name: build extension
+        run: uv run maturin develop -r -m rust/cleave_core/Cargo.toml
+      - name: parity + full fast suite on the Rust backend
+        run: uv run pytest -q -m "not slow" tests/
+      - name: speed benchmark
+        run: uv run python benchmarks/bench_text_engine.py 5000

@@ -100,6 +100,9 @@ def run_job(job_id: str, input_paths: list[Path]) -> None:
         if len(files_meta) > 1:
             _link_cross_document_relationships(all_units, files_meta, graph_edges)
 
+        set_progress(job, 88, f"{len(all_units)} knowledge units — checking near-duplicates…")
+        mark_near_duplicates(all_units)
+
         # Cross-chunk Entity and Topic Enrichment via Gemini
         if job.use_llm and all_units:
             try:
@@ -143,6 +146,40 @@ def run_job(job_id: str, input_paths: list[Path]) -> None:
         job.status = "error"
     finally:
         current_job_id.reset(token)
+
+
+#: Estimated Jaccard similarity (5-word shingles) at which two units count as
+#: the same text. High on purpose: repeated boilerplate, duplicated pages and
+#: re-sent attachments, not paraphrases.
+DUPLICATE_THRESHOLD = 0.85
+#: Units shorter than this are never compared — short headers and captions
+#: legitimately repeat and carry their meaning in their position.
+DUPLICATE_MIN_TOKENS = 30
+
+
+def mark_near_duplicates(units: list, threshold: float = DUPLICATE_THRESHOLD) -> int:
+    """Tag near-duplicate units so retrieval can collapse them.
+
+    The first unit of each group is canonical; the rest get
+    ``metadata["duplicate_of"]`` and the canonical one lists them in
+    ``metadata["duplicates"]``. Nothing is deleted: provenance of every copy is
+    kept, and search simply stops returning the same paragraph five times.
+    MinHash + LSH via ``cleave._accel`` (Rust when built). Returns the number
+    of units marked as duplicates.
+    """
+    from ._accel import near_duplicate_groups  # noqa: PLC0415
+
+    texts = [u.content if u.token_count >= DUPLICATE_MIN_TOKENS else "" for u in units]
+    marked = 0
+    for group in near_duplicate_groups(texts, threshold):
+        canon = units[group[0]]
+        for i in group[1:]:
+            units[i].metadata["duplicate_of"] = canon.id
+            canon.metadata.setdefault("duplicates", []).append(units[i].id)
+            marked += 1
+    if marked:
+        log.info("marked %d near-duplicate unit(s)", marked)
+    return marked
 
 
 def _prefix_element(e, prefix: str) -> None:
@@ -335,6 +372,7 @@ def _write_artifacts(
 
     totals = {
         "units": len(units),
+        "near_duplicates": sum(1 for u in units if u.metadata.get("duplicate_of")),
         "tier0_pct": round(100 * sum(1 for u in units if u.context.tier == 0) / max(1, len(units))),
         "flagged_for_enrichment": sum(1 for u in units if u.decision.escalation_flags),
         "enriched": sum(1 for u in units if u.context.situating_summary),

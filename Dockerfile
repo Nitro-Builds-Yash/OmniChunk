@@ -1,4 +1,13 @@
 # syntax=docker/dockerfile:1.7
+
+# ── Rust extension: built once, installed as a wheel ──
+FROM rust:1-slim AS rust-builder
+RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-pip \
+ && pip3 install --break-system-packages "maturin>=1.7,<2" && rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+COPY rust/cleave_core ./
+RUN maturin build --release -i python3 -o /wheels
+
 FROM python:3.12-slim AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -18,6 +27,9 @@ RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev --no-ins
 COPY cleave ./cleave
 COPY README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev
+# abi3 wheel: built against the builder's Python, loads on any CPython ≥ 3.12.
+COPY --from=rust-builder /wheels /wheels
+RUN uv pip install --python /app/.venv/bin/python /wheels/*.whl && rm -rf /wheels
 
 RUN useradd --create-home --uid 1000 cleave && mkdir -p /app/data && chown -R cleave /app/data
 USER cleave

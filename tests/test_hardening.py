@@ -288,3 +288,77 @@ def test_vector_point_ids_are_stable_and_job_unique():
     b = uuid.uuid5(uuid.NAMESPACE_URL, "/data/jobs/b/input/x.pdf#f0_ku_0000")
     assert a != b
     assert a == uuid.uuid5(uuid.NAMESPACE_URL, "/data/jobs/a/input/x.pdf#f0_ku_0000")
+
+
+# ───────── near-duplicate units ─────────
+
+_PARA = (
+    "Headcount is measured on the last calendar day of the quarter and contractors are "
+    "excluded from every figure in this report, including the regional breakdowns, the "
+    "attrition tables and the open roles summary that follows in the appendix section."
+)
+
+
+def _unit(uid: str, text: str):
+    from cleave.models import (
+        ChunkingDecision,
+        Context,
+        KnowledgeUnit,
+        Modality,
+        Provenance,
+        count_tokens,
+    )
+
+    return KnowledgeUnit(
+        id=uid,
+        content=text,
+        modality=Modality.DOCUMENT,
+        context=Context(document_title="t"),
+        provenance=Provenance(source_uri="x"),
+        decision=ChunkingDecision(strategy="structural", reason="test"),
+        token_count=count_tokens(text),
+    )
+
+
+def test_pipeline_marks_near_duplicates_but_keeps_them():
+    from cleave.pipeline import mark_near_duplicates
+
+    units = [
+        _unit("a", _PARA),
+        _unit("b", "A completely unrelated paragraph about remote work. " * 6),
+        _unit("c", _PARA + " Updated."),
+        _unit("d", "Short note."),
+        _unit("e", "Short note."),  # too short to compare: repeats legitimately
+    ]
+    assert mark_near_duplicates(units) == 1
+    assert units[2].metadata["duplicate_of"] == "a"
+    assert units[0].metadata["duplicates"] == ["c"]
+    assert "duplicate_of" not in units[4].metadata
+
+
+def test_search_collapses_near_duplicates(tmp_data_dir):
+    base = {"relationships": [], "context": {"heading_path": []}}
+    _write_units(
+        "jd",
+        [
+            {**base, "id": "u1", "content": _PARA, "embed_text": _PARA, "metadata": {}},
+            {
+                **base,
+                "id": "u2",
+                "content": _PARA,
+                "embed_text": _PARA,
+                "metadata": {"duplicate_of": "u1"},
+            },
+            {**base, "id": "u3", "content": "contractors policy", "embed_text": "contractors"},
+        ],
+    )
+    ids = [h.unit["id"] for h in search_mod.search_jobs(["jd"], "contractors excluded headcount")]
+    assert "u1" in ids
+    assert "u2" not in ids
+
+
+def test_python_fallback_finds_the_same_groups():
+    from cleave import _accel
+
+    texts = [_PARA, "unrelated words entirely " * 10, _PARA + " Updated."]
+    assert _accel.py_near_duplicate_groups(texts, 0.8) == [[0, 2]]

@@ -32,8 +32,9 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import _accel
 from .models import _encoder, count_tokens
-from .web.search import BM25, RRF_K, tokenize
+from .web.search import RRF_K, tokenize
 
 log = logging.getLogger(__name__)
 
@@ -59,6 +60,8 @@ def load_qa(path: Path) -> list[QA]:
 
 def fixed_chunks_from_text(text: str) -> list[str]:
     enc = _encoder()
+    if getattr(enc, "name", "") == "approx-whitespace":
+        return _accel.fixed_windows(text, FIXED_TOKENS, FIXED_OVERLAP)
     ids = enc.encode(text, disallowed_special=())
     out, start = [], 0
     while start < len(ids):
@@ -86,7 +89,7 @@ def answered(chunk: str, needles: list[str]) -> bool:
 
 def rank(chunks: list[str], question: str, dense: bool) -> list[int]:
     """Indices of ``chunks`` best-first, by BM25 fused with dense cosine (RRF)."""
-    bm = BM25([tokenize(c) for c in chunks]).scores(tokenize(question))
+    bm = _accel.bm25_from_texts(chunks).scores(tokenize(question))
     fused = [0.0] * len(chunks)
     for r, i in enumerate(sorted(range(len(chunks)), key=lambda i: bm[i], reverse=True), 1):
         if bm[i] > 0:

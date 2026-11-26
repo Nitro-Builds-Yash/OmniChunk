@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import re
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from functools import lru_cache
@@ -319,10 +318,11 @@ class _ApproxEncoder:
     """
 
     name = "approx-whitespace"
-    _pattern = re.compile(r"\s*\S+|\s+$")
 
     def encode(self, text: str, **_kw: Any) -> list[str]:
-        return self._pattern.findall(text)
+        from ._accel import approx_encode  # noqa: PLC0415 — Rust when built
+
+        return approx_encode(text)
 
     def decode(self, tokens: list[str]) -> str:
         return "".join(tokens)
