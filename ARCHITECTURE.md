@@ -470,3 +470,39 @@ plus a branch in the routing cascade and a colour in the template's `chip` map.
 add it to the hard-veto set in `choose_cut()` if severing it should be forbidden.
 
 **A different LLM** is a class with `is_configured()` and `complete_json()` in `llm.py`.
+
+
+---
+
+## Serving, retrieval and operations (v0.2)
+
+**Job lifecycle.** `POST /api/jobs` saves uploads, records the job in
+`data/jobs.sqlite3`, and hands it to `jobs.submit`, which admits at most
+`CLEAVE_MAX_CONCURRENT_JOBS` into the pipeline; the rest stay `queued`. Every
+progress update is persisted. On startup the registry is restored from SQLite
+(then from legacy `profile.json` artifacts); anything that was mid-flight is
+marked `error / interrupted` and can be re-run from its stored inputs.
+
+**Retrieval.** `web/search.py` ranks the union of the requested jobs' units by
+BM25 and, when the shared embedder loads, cosine similarity; the two rank lists
+are fused with RRF (k=60) so neither score needs calibrating against the other.
+Ranking over the union rather than per job keeps scores comparable across jobs.
+An optional cross-encoder re-ranks the head. Each hit is then expanded along
+meaning-bearing edges (`has_schema`, `captioned_by`, `child_of`, …) — never along
+reading order — which is where the context graph pays off at query time.
+
+**Offline operation.** tiktoken downloads its encoding on first use; when it
+cannot, `models._ApproxEncoder` (lossless whitespace-anchored tokens) takes over
+with a warning, so chunking and the test suite run air-gapped. Token budgets
+become slightly generous rather than failing.
+
+**Security.** `web/security.py` enforces `CLEAVE_API_KEY` (constant-time
+comparison) and a per-client sliding-window limit on job creation. Synthetic
+video fallback is opt-in (`CLEAVE_ALLOW_SYNTHETIC_FALLBACK=1`). Compose binds
+every port to loopback and has no default passwords.
+
+**Experimental adapters.** `storage/object_store.py` (MinIO), `storage/graph_db.py`
+(Neo4j) and `events/producer.py` (Redpanda HTTP proxy, port 8082) exist and are
+unit-tested but the pipeline does not call them yet. Qdrant sync is live: points
+use stable `uuid5(source_uri#unit_id)` ids, so re-indexing upserts instead of
+duplicating.

@@ -20,7 +20,7 @@ class GraphDB:
     def __init__(self, bolt_url: str | None = None, http_url: str | None = None) -> None:
         self.http_url = http_url or os.environ.get("NEO4J_HTTP_URL", "http://127.0.0.1:7474")
         self.user = os.environ.get("NEO4J_USER", "neo4j")
-        self.password = os.environ.get("NEO4J_PASSWORD", "cleavepassword")
+        self.password = os.environ.get("NEO4J_PASSWORD", "")
         self._connected: bool | None = None
 
     def is_available(self) -> bool:

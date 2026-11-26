@@ -73,8 +73,53 @@ input ──▶ modality extraction ──▶ content elements ──▶ context
 
 ```bash
 uv sync
-uv run python -m cleave.app        # → http://127.0.0.1:8321
+uv run cleave serve                # → http://127.0.0.1:8321
 ```
+
+Or with Docker (set `CLEAVE_API_KEY` in `.env` first — the container listens on
+0.0.0.0, and `cleave serve` refuses to do that without a key):
+
+```bash
+docker compose up                    # Cleave alone
+docker compose --profile infra up    # + Qdrant, MinIO, Redpanda, Neo4j
+```
+
+## Use it as a library or CLI
+
+```python
+from cleave import chunk_file
+units = chunk_file("report.pdf")           # deterministic, no LLM by default
+print(units[0].embed_text())
+```
+
+```bash
+uv run cleave chunk report.pdf sales.csv -o units.jsonl
+```
+
+## Search it
+
+Every job is searchable with **hybrid retrieval**: BM25 (exact ids like
+`SO-10042`, section numbers) fused with dense vectors by reciprocal rank fusion,
+an optional cross-encoder re-ranker (`CLEAVE_RERANKER_MODEL`), and **graph
+expansion** — a matched row group comes back with its schema card, a figure
+with its caption. Search keeps working (BM25 only) when no embedding model can
+load.
+
+```bash
+curl "http://127.0.0.1:8321/api/search?q=budget+Engineering+Bengaluru"   # all jobs
+curl "http://127.0.0.1:8321/api/search?q=SO-10042&jobs=<id1>,<id2>&k=10"
+```
+
+## Secure it
+
+Unset, `CLEAVE_API_KEY` keeps the zero-config local experience. Set, every route
+except `/health*` and `/static` requires it (`X-API-Key`, `Authorization:
+Bearer`, or as the HTTP Basic password, so browsers get a login prompt). Job
+submissions are rate-limited per client (`CLEAVE_RATE_LIMIT_PER_MIN`), at most
+`CLEAVE_MAX_CONCURRENT_JOBS` run at once, and job state lives in
+`data/jobs.sqlite3` — jobs interrupted by a restart come back as retryable
+errors (`POST /api/jobs/{id}/retry`). `run_app_ngrok.py` refuses to open a
+tunnel unless both `NGROK_AUTHTOKEN` and `CLEAVE_API_KEY` are set.
 
 Upload a PDF/DOCX/MD, a CSV/XLSX, or an audio file (the latter needs the STT worker, see
 below). Inspect the routing decision, the units, and each unit's receipt.
@@ -88,6 +133,30 @@ cd ~/PycharmProjects/STT && .venv/bin/python -m uvicorn --factory stt.server.app
 ```bash
 uv run python -m cleave.evaluate tests/fixtures/executive_summary.pdf tests/fixtures/attention_paper.pdf
 ```
+
+### Retrieval benchmark
+
+Structure is a means; findable answers are the end. `cleave eval-retrieval` asks
+questions whose answer must appear *together* in one retrieved chunk — for a
+spreadsheet that includes the column name beside the value — and compares
+Cleave against a fixed 512/64 splitter with the same retriever:
+
+```bash
+uv run cleave eval-retrieval benchmarks/qa_fixtures.jsonl          # BM25
+uv run cleave eval-retrieval benchmarks/qa_fixtures.jsonl --dense  # + vectors
+```
+
+| 12 questions · CSV, XLSX, MD · BM25 | fixed 512/64 | Cleave |
+|---|---|---|
+| recall@1 | 0.667 | **0.917** |
+| recall@3 | 0.667 | **1.000** |
+| MRR | 0.667 | **0.958** |
+| tokens in top-3 context | 912 | **823** |
+
+CI runs it on every push and uploads the scorecard. Add your own QA lines to
+grow it.
+
+### Context preservation scorecard
 
 Writes `data/scorecard.json` — the Context Preservation Scorecard comparing a fixed
 512-token/64-overlap baseline against Cleave on caption integrity, header integrity,
@@ -112,6 +181,11 @@ no number in the UI is hand-written.
 | Path | What lives there |
 |---|---|
 | `cleave/models.py` | The frozen data contract (elements, units, receipts) |
+| `cleave/api.py`, `cleave/cli.py` | Library entry points (`chunk_file`) and the `cleave` command |
+| `cleave/eval_retrieval.py` | Retrieval recall/MRR benchmark vs the fixed-size baseline |
+| `cleave/web/search.py` | Hybrid BM25 + dense retrieval, RRF, re-rank, graph expansion |
+| `cleave/web/security.py` | API-key auth and job-submission rate limiting |
+| `cleave/storage/`, `cleave/events/` | Adapters: Qdrant is synced after each job; MinIO, Neo4j and Redpanda are **experimental** and not called by the pipeline yet |
 | `cleave/ingest_document.py` | Docling → content elements |
 | `cleave/graph.py` | Context graph: captions, references, hierarchy, evidence |
 | `cleave/router.py` | Profiler, routing cascade, veto-aware cut selection, escalation flags |

@@ -111,7 +111,7 @@ async def query_job(request: Request, job_id: str):
         raise HTTPException(404, "no results to search")
     # Embedding is model inference: off the event loop, or every other
     # connection — including the status poller — stalls for its duration.
+    # BM25 always runs, so a missing embedding model degrades ranking quality
+    # instead of returning a 503 as the vector-only search did.
     hits = await run_in_threadpool(search.search_units, job_id, q)
-    if not hits and not search.embedding_available():
-        raise HTTPException(503, "embedding model unavailable — search needs MiniLM")
     return templates.TemplateResponse(request, "_query.html", {"q": q, "hits": hits})

@@ -1,27 +1,60 @@
-version: '3.8'
+# `docker compose up` runs Cleave alone — the pipeline needs nothing else.
+# `docker compose --profile infra up` adds the optional backing services.
+# Qdrant is synced after every job when reachable; MinIO, Redpanda and Neo4j
+# have adapters under cleave/storage and cleave/events that the pipeline does
+# not call yet (see ARCHITECTURE.md, "Experimental adapters").
+#
+# Secrets come from .env (see .env.example); nothing below has a default
+# password, and every port binds to loopback only.
 
 services:
+  cleave:
+    build: .
+    container_name: cleave-app
+    restart: unless-stopped
+    env_file: [.env]
+    environment:
+      QDRANT_URL: http://qdrant:6333
+      REDPANDA_REST_URL: http://redpanda:8082
+    ports:
+      - "127.0.0.1:8321:8321"
+    volumes:
+      - cleave_data:/app/data
+      - model_cache:/home/cleave/.cache
+
+  qdrant:
+    profiles: [infra]
+    image: qdrant/qdrant:v1.12.4
+    container_name: cleave-qdrant
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
   minio:
-    image: minio/minio:latest
+    profiles: [infra]
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
     container_name: cleave-minio
     restart: unless-stopped
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadminpassword
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
 
   redpanda:
-    image: docker.redpanda.com/redpandadata/redpanda:latest
+    profiles: [infra]
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
     container_name: cleave-redpanda
     restart: unless-stopped
     ports:
-      - "9092:9092"
-      - "9644:9644"
+      - "127.0.0.1:9092:9092"
+      - "127.0.0.1:8082:8082"   # HTTP proxy (what cleave/events talks to)
     command:
       - redpanda start
       - --smp 1
@@ -29,33 +62,26 @@ services:
       - --overprovisioned
       - --kafka-addr PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092
       - --advertise-kafka-addr PLAINTEXT://redpanda:29092,OUTSIDE://localhost:9092
+      - --pandaproxy-addr 0.0.0.0:8082
     volumes:
       - redpanda_data:/var/lib/redpanda/data
 
   neo4j:
+    profiles: [infra]
     image: neo4j:5-community
     container_name: cleave-neo4j
     restart: unless-stopped
     ports:
-      - "7474:7474"
-      - "7687:7687"
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
     environment:
-      - NEO4J_AUTH=neo4j/cleavepassword
-      - NEO4J_PLUGINS=["apoc"]
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?set NEO4J_PASSWORD in .env}
     volumes:
       - neo4j_data:/data
 
-  qdrant:
-    image: qdrant/qdrant:latest
-    container_name: cleave-qdrant
-    restart: unless-stopped
-    ports:
-      - "6333:6333"
-      - "6334:6334"
-    volumes:
-      - qdrant_data:/qdrant/storage
-
 volumes:
+  cleave_data:
+  model_cache:
   minio_data:
   redpanda_data:
   neo4j_data:

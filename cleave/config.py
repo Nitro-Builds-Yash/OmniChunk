@@ -81,11 +81,24 @@ class Settings:
     evaluation_mode: bool = False
     #: When False, synthetic fallback raises VideoWorkerUnavailable in production.
     #: Set CLEAVE_ALLOW_SYNTHETIC_FALLBACK=0 to enforce real worker requirement.
-    allow_synthetic_fallback: bool = True
+    allow_synthetic_fallback: bool = False
     #: Boundary signal weight for a shot-only camera cut (vs 0.85 for a scene change).
     weight_shot_change: float = 0.35
     #: Minimum boundary score for speaker change to force a multimodal event split.
     speaker_boundary_threshold: float = 0.55
+    # Security and serving:
+    #: When set, every route except /health and /static needs this key
+    #: (``X-API-Key`` header, ``Authorization: Bearer``, or HTTP Basic password).
+    api_key: str = ""
+    #: Job submissions allowed per client IP per minute (0 disables the limit).
+    rate_limit_per_min: int = 10
+    #: Jobs processed at once; the rest wait in the queue.
+    max_concurrent_jobs: int = 2
+    # Retrieval:
+    embed_model: str = "all-MiniLM-L6-v2"
+    #: Optional cross-encoder for re-ranking search hits, e.g.
+    #: ``cross-encoder/ms-marco-MiniLM-L-6-v2``. Empty disables re-ranking.
+    reranker_model: str = ""
 
 
 def _load_dotenv_once() -> None:
@@ -186,10 +199,15 @@ def settings() -> Settings:
         tabular_max_tokens=_int_env("CLEAVE_TABULAR_MAX_TOKENS", 1200, minimum=150),
         completeness_threshold=_float_env("CLEAVE_COMPLETENESS_THRESHOLD", 0.7, minimum=0.0),
         evaluation_mode=_str_env("CLEAVE_EVALUATION_MODE", "0").lower() in ("1", "true", "yes"),
-        allow_synthetic_fallback=_str_env("CLEAVE_ALLOW_SYNTHETIC_FALLBACK", "1").lower()
+        allow_synthetic_fallback=_str_env("CLEAVE_ALLOW_SYNTHETIC_FALLBACK", "0").lower()
         not in ("0", "false", "no"),
         weight_shot_change=_float_env("CLEAVE_WEIGHT_SHOT_CHANGE", 0.35),
         speaker_boundary_threshold=_float_env("CLEAVE_SPEAKER_BOUNDARY_THRESHOLD", 0.55),
+        api_key=_str_env("CLEAVE_API_KEY", ""),
+        rate_limit_per_min=_int_env("CLEAVE_RATE_LIMIT_PER_MIN", 10, minimum=0),
+        max_concurrent_jobs=_int_env("CLEAVE_MAX_CONCURRENT_JOBS", 2, minimum=1),
+        embed_model=_str_env("CLEAVE_EMBED_MODEL", "all-MiniLM-L6-v2"),
+        reranker_model=_str_env("CLEAVE_RERANKER_MODEL", ""),
     )
 
 

@@ -1,4 +1,4 @@
-"""Event Producer: Dispatches ingestion tasks to Kafka/Redpanda topic or in-memory queues."""
+"""Event Producer (experimental, not yet called by the pipeline): dispatches ingestion tasks to Kafka/Redpanda topic or in-memory queues."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ class EventProducer:
 
     def __init__(self, kafka_rest_url: str | None = None) -> None:
         self.kafka_rest_url = kafka_rest_url or os.environ.get(
-            "REDPANDA_REST_URL", "http://127.0.0.1:9644"
+            "REDPANDA_REST_URL", "http://127.0.0.1:8082"
         )
         self._local_subscribers: dict[str, list[Callable[[IngestionEvent], None]]] = {}
         self._available: bool | None = None
@@ -36,7 +36,7 @@ class EventProducer:
         if self._available is not None:
             return self._available
         try:
-            r = client().get(f"{self.kafka_rest_url}/v1/status/ready", timeout=1.0)
+            r = client().get(f"{self.kafka_rest_url}/brokers", timeout=1.0)
             self._available = r.status_code == 200
         except Exception:
             self._available = False

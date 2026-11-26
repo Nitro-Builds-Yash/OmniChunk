@@ -9,6 +9,8 @@ deliberately or not at all.
 from __future__ import annotations
 
 import hashlib
+import logging
+import re
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from functools import lru_cache
@@ -306,11 +308,37 @@ class Profile:
 # ───────── shared helpers ─────────
 
 
+class _ApproxEncoder:
+    """Lossless whitespace-anchored tokenizer used when tiktoken cannot load.
+
+    tiktoken downloads ``cl100k_base`` on first use, so an offline or
+    air-gapped machine used to fail every chunking call. Each token here is a
+    run of non-space characters with its leading whitespace, so ``decode``
+    reproduces the text exactly; counts run somewhat below cl100k's, which only
+    makes budgets slightly generous rather than breaking anything.
+    """
+
+    name = "approx-whitespace"
+    _pattern = re.compile(r"\s*\S+|\s+$")
+
+    def encode(self, text: str, **_kw: Any) -> list[str]:
+        return self._pattern.findall(text)
+
+    def decode(self, tokens: list[str]) -> str:
+        return "".join(tokens)
+
+
 @lru_cache(maxsize=1)
 def _encoder():
-    import tiktoken  # noqa: PLC0415 — lazy: keep import time sane
+    try:
+        import tiktoken  # noqa: PLC0415 — lazy: keep import time sane
 
-    return tiktoken.get_encoding("cl100k_base")
+        return tiktoken.get_encoding("cl100k_base")
+    except Exception as exc:  # network blocked, cache missing, package absent
+        logging.getLogger(__name__).warning(
+            "tiktoken unavailable (%s) — using approximate whitespace token counts", exc
+        )
+        return _ApproxEncoder()
 
 
 @lru_cache(maxsize=4096)

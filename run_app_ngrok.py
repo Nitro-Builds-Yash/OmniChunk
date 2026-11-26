@@ -1,6 +1,7 @@
 """Start Cleave server and expose it via ngrok."""
 
 import contextlib
+import os
 import socket
 import subprocess
 import sys
@@ -32,6 +33,13 @@ def kill_port(port: int):
 def main():
     port = 8321
 
+    # A public tunnel without auth hands anyone with the URL your uploads and
+    # your LLM quota. Refuse to start unless both secrets come from the env.
+    missing = [v for v in ("NGROK_AUTHTOKEN", "CLEAVE_API_KEY") if not os.environ.get(v)]
+    if missing:
+        print(f"ERROR: set {', '.join(missing)} before exposing Cleave publicly.")
+        return
+
     # 1. Free the port if occupied
     if is_port_in_use(port):
         print(f"Port {port} is in use, freeing it...")
@@ -47,11 +55,11 @@ def main():
             "uvicorn",
             "cleave.app:app",
             "--host",
-            "0.0.0.0",
+            "127.0.0.1",  # ngrok tunnels to loopback; no need to listen on the LAN
             "--port",
             str(port),
         ],
-        creationflags=subprocess.CREATE_NEW_CONSOLE,
+        creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
     )
 
     # 3. Wait for server to be ready
@@ -72,7 +80,7 @@ def main():
         from pyngrok import conf, ngrok
 
         pyngrok_config = conf.get_default()
-        pyngrok_config.auth_token = "3ACmVoldN0XsN3AO9TSe1RV1ER0_hkuXUPGWa1qi28qXP57p"
+        pyngrok_config.auth_token = os.environ["NGROK_AUTHTOKEN"]
 
         print(f"Starting ngrok tunnel to port {port}...")
         tunnel = ngrok.connect(port)

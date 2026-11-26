@@ -1,0 +1,12 @@
+{"file": "sales_q3.csv", "question": "What was the revenue for order SO-10039?", "must_contain": ["SO-10039", "6607.08", "revenue_usd"]}
+{"file": "sales_q3.csv", "question": "Which sales rep handled order SO-10119 and what is its status?", "must_contain": ["SO-10119", "R. Fernandes", "cancelled", "status"]}
+{"file": "sales_q3.csv", "question": "What is the unit price of order SO-10299?", "must_contain": ["SO-10299", "1255.12", "unit_price_usd"]}
+{"file": "sales_q3.csv", "question": "What discount was applied to order SO-10469?", "must_contain": ["SO-10469", "discount_pct"]}
+{"file": "people_ops.xlsx", "question": "What is the budget for Engineering in Bengaluru?", "must_contain": ["Bengaluru", "2062678", "budget_usd"]}
+{"file": "people_ops.xlsx", "question": "How many open roles does Engineering have in Berlin?", "must_contain": ["Berlin", "open_roles"]}
+{"file": "people_ops.xlsx", "question": "What was the regretted attrition percentage for Design in 2025-Q3?", "must_contain": ["2025-Q3", "Design", "67.7", "regretted_pct"]}
+{"file": "people_ops.xlsx", "question": "Are contractors included in the headcount numbers?", "must_contain": ["Contractors are excluded"]}
+{"file": "people_ops.xlsx", "question": "Why were the Austin figures restated?", "must_contain": ["Research reorganisation"]}
+{"file": "flat_essay.md", "question": "Why do answers from mechanically split fragments go wrong?", "must_contain": ["characteristic vagueness"]}
+{"file": "flat_essay.md", "question": "What remains the binding constraint as material volume grows?", "must_contain": ["binding constraint"]}
+{"file": "flat_essay.md", "question": "What does a new person inherit when joining the team?", "must_contain": ["inherit access to everything"]}

@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(pdftotext \"/Users/apple/Downloads/AI_Powered_Universal_Chunking_and_Information_Extraction_Hackathon.pdf\" -)"
-    ]
-  }
-}

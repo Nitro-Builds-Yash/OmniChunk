@@ -19,10 +19,13 @@ log = logging.getLogger(__name__)
 
 @lru_cache(maxsize=1)
 def _model():
+    """The single embedding model for the whole process (CLEAVE_EMBED_MODEL)."""
     try:
         from sentence_transformers import SentenceTransformer  # noqa: PLC0415
 
-        return SentenceTransformer("all-MiniLM-L6-v2")
+        from .config import settings  # noqa: PLC0415
+
+        return SentenceTransformer(settings().embed_model)
     except Exception as exc:
         log.warning("MiniLM unavailable (%s) — flat prose stays on paragraph_fallback", exc)
         return None
@@ -67,3 +70,28 @@ def semantic_groups(stream: list[ContentElement]) -> list[list[ContentElement]] 
         prev = c
     groups.append(stream[prev:])
     return [g for g in groups if g]
+
+
+@lru_cache(maxsize=1)
+def _reranker():
+    """Optional cross-encoder (CLEAVE_RERANKER_MODEL); None when unset or unloadable."""
+    from .config import settings  # noqa: PLC0415
+
+    name = settings().reranker_model
+    if not name:
+        return None
+    try:
+        from sentence_transformers import CrossEncoder  # noqa: PLC0415
+
+        return CrossEncoder(name)
+    except Exception as exc:
+        log.warning("re-ranker %s unavailable (%s) — hybrid order is kept", name, exc)
+        return None
+
+
+def rerank(query: str, texts: list[str]) -> list[float] | None:
+    """Cross-encoder relevance scores for ``texts``, or None when no re-ranker."""
+    m = _reranker()
+    if m is None or not texts:
+        return None
+    return [float(s) for s in m.predict([(query, t) for t in texts], show_progress_bar=False)]
